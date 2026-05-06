@@ -2,19 +2,20 @@
   "name": "api",
   "version": "1.0.0",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "ts-node-dev src/server.ts"
+  },
+  "prisma": {
+    "seed": "tsx src/factory/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",
-    "@repo/shared": "workspace:*",
-    "cors": "^2.8.6",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "express": "^4.19.2"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.11.30",
-    "ts-node-dev": "^2.0.0",
+    "prisma": "^7.8.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.5"
   }
 }
