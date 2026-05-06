@@ -1,5 +1,6 @@
 import express from "express";
 import { CreateUserSchema } from "@repo/shared";
+import prisma from "../lib/prisma";
 
 const app = express();
 app.use(express.json());
@@ -18,14 +19,28 @@ app.post("/user", (req, res) => {
 });
 
 
-const test = () => {
-  const result = CreateUserSchema.safeParse({
-    name: "John",
-    email: "john@email.com",
-    password: "123456",
-  });
+// const test = () => {
+//   const result = CreateUserSchema.safeParse({
+//     name: "John",
+//     email: "john@email.com",
+//     password: "123456",
+//   });
 
-  console.log(result);
+//   console.log(result);
+// };
+const test = async () => {
+  try {
+    const role = await prisma.role.create({
+      data: {
+        name: "ADMIN",
+        description: "Administrator role",
+      },
+    });
+
+    console.log("Role Created:", role);
+  } catch (error) {
+    console.log(error);
+  }
 };
 
 test();
