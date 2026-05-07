@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../../config/prismaClient";
+import  prisma  from "../../lib/prisma";
 
 export async function me(req: Request, res: Response) {
   const userId = (req as any).user.id
@@ -38,7 +38,6 @@ export async function me(req: Request, res: Response) {
     id: user.id,
     name: user.name,
     username: user.username,
-    company_id:user.company_id,
     roles,
     permissions
   })
