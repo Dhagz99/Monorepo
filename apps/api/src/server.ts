@@ -1,50 +1,77 @@
+// server.ts
+
 import express from "express";
-import { CreateUserSchema } from "@repo/shared";
-import prisma from "../lib/prisma";
+import cors from "cors";
+import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import http from "http";
+import { Server } from "socket.io";
+import routes from './routes/urls';
+
+dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+
+const PORT = Number(process.env.PORT) || 5000;
+
+// Allowed origins
+const allowedOrigins = [
+  process.env.NEXT_PUBLIC_API_URL,
+  process.env.NEXT_PUBLIC_API_LOCAL_URL,
+].filter(Boolean) as string[];
+
+// ---------------------------
+// CORS Configuration
+// ---------------------------
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow non-browser tools (Postman)
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// ---------------------------
+// Middlewares
+// ---------------------------
+app.use(cookieParser());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.post("/user", (req, res) => {
-  const result = CreateUserSchema.safeParse(req.body);
+// ---------------------------
+// Routes
+// ---------------------------
+app.use("/api", routes);
 
-  if (!result.success) {
-    return res.status(400).json(result.error);
-  }
-  
-  res.json({
-    message: "Valid data",
-    data: result.data,
+// ---------------------------
+// Socket.io
+// ---------------------------
+export const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
   });
 });
 
-
-// const test = () => {
-//   const result = CreateUserSchema.safeParse({
-//     name: "John",
-//     email: "john@email.com",
-//     password: "123456",
-//   });
-
-//   console.log(result);
-// };
-const test = async () => {
-  try {
-    const role = await prisma.role.create({
-      data: {
-        name: "ADMIN",
-        description: "Administrator role",
-      },
-    });
-
-    console.log("Role Created:", role);
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-test();
-
-app.listen(5000, () => {
-  console.log("API running on port 5000");
+// ---------------------------
+// Start Server (LAN Ready)
+// ---------------------------
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
 });
