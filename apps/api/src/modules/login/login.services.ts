@@ -70,7 +70,7 @@ export async function loginUser(params: LoginDTO) {
 
 
 export async function createUserService(data: RegisterSchema) {
-  const { email, name, username, password, roleIds, company_id } = data
+  const { email, name, username, password, roleIds } = data
 
   const existing = await prisma.user.findFirst({
     where: {
