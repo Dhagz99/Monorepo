@@ -21,7 +21,7 @@ const allowedOrigins = [
   process.env.NEXT_PUBLIC_API_LOCAL_URL,
 ].filter(Boolean) as string[];
 
-// ---------------------------
+// --------------------------- 
 // CORS Configuration
 // ---------------------------
 app.use(
