@@ -9,5 +9,5 @@
     "strict": true
   },
 
-  "include": ["src", "prisma.config.ts"]
+  "include": ["src",  "factory", "prisma.config.ts"]
 }

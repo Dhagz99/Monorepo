@@ -1,9 +1,37 @@
-import { z } from "zod";
+import z from "zod";
 
-export const CreateUserSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(6),
-});
+export const createUserSchema = z.object({
+    email: z.string().email().optional(),
+    name: z.string().min(1),
+    username: z.string().min(3),
+    password: z.string().min(8),
+  
+    roleIds: z
+      .array(z.number().int().positive())
+      .min(1, "At least one role is required"),
 
-export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+   
+
+  })
+
+
+  export const updateUserSchema1 = z.object({
+    email: z.string().email().optional(),
+    name: z.string().min(1),
+    username: z.string().min(3),
+    password: z.string().min(8).optional(),
+  
+    roleIds: z
+      .array(z.number().int().positive())
+      .min(1, "At least one role is required"),
+         
+  })
+  
+  
+
+  export type RegisterSchema= z.infer<typeof createUserSchema >
+
+
+  export const updateUserSchema = updateUserSchema1.partial().extend({
+    roleIds: z.array(z.number().int().positive()).optional()
+  })
