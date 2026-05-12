@@ -35,3 +35,18 @@ export const createUserSchema = z.object({
   export const updateUserSchema = updateUserSchema1.partial().extend({
     roleIds: z.array(z.number().int().positive()).optional()
   })
+
+
+
+  export const loginSchema = z.object({
+    username: z
+      .string()
+      .min(1, "Username is required"),
+  
+    password: z
+      .string()
+      .min(6, "Password must be at least 6 characters"),
+  });
+  
+  export type LoginSchema = z.infer<typeof loginSchema>;
+  
