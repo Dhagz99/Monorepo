@@ -3,15 +3,13 @@ import z from "zod";
 export const createUserSchema = z.object({
     email: z.string().email().optional(),
     name: z.string().min(1),
+    branchId: z.string().optional(),
     username: z.string().min(3),
     password: z.string().min(8),
   
     roleIds: z
-      .array(z.number().int().positive())
+      .array(z.string())
       .min(1, "At least one role is required"),
-
-   
-
   })
 
 

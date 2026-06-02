@@ -1,54 +1,24 @@
-import prisma from "../src/lib/prisma";
+import seedRoles from "./seed/role.seed";
+
 
 async function main() {
-  const permissions = [
- 
-    { code: "USER_MANAGE", name: "Manage Users" },
-    { code: "ADMIN_MANAGE", name: "Manage Admin" }
-  ]
 
-  for (const p of permissions) {
-    await prisma.permission.upsert({
-      where: { code: p.code },
-      update: {},
-      create: p
-    })
-  }
 
-  const roles = [
-    { name: "ADMIN", permissions: permissions.map(p => p.code) },
+   await seedRoles();
 
-  ]
 
-  for (const role of roles) {
-    const createdRole = await prisma.role.upsert({
-      where: { name: role.name },
-      update: {},
-      create: { name: role.name }
-    })
 
-    for (const code of role.permissions) {
-      const permission = await prisma.permission.findUnique({ where: { code } })
+   console.log(
+      "All seeds completed"
+   );
 
-      if (permission) {
-        await prisma.rolePermission.upsert({
-          where: {
-            roleId_permissionId: {
-              roleId: createdRole.id,
-              permissionId: permission.id
-            }
-          },
-          update: {},
-          create: {
-            roleId: createdRole.id,
-            permissionId: permission.id
-          }
-        })
-      }
-    }
-  }
-
-  console.log("Roles & permissions seeded")
 }
 
 main()
+   .catch((error) => {
+
+      console.error(error);
+
+      process.exit(1);
+
+   });

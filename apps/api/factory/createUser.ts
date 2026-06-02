@@ -11,7 +11,7 @@ async function main() {
       name: "Trial User",
       username: "admin1234",
       password: Password,
-      roleIds: [1],
+      roleIds: ["dwad"],
   });
 
 }

@@ -1,5 +1,5 @@
 
-import { CreateUserInput, LoginDTO } from "./login.types";
+import {  LoginDTO } from "./login.types";
 import  prisma  from "../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { signToken } from "../utils/jwt";
@@ -106,7 +106,7 @@ export async function createUserService(data: RegisterSchema) {
         username,
         password: hashedPassword,
         isActive: true,
-    }
+      }
     })
 
     await tx.userRole.createMany({
@@ -131,13 +131,13 @@ export async function createUserService(data: RegisterSchema) {
 
 
 export async function updateUserService(
-  userId: number,
+  userId: string,
   data: {
     email?: string
     name?: string
     username?: string
     password?: string
-    roleIds?: number[]
+    roleIds?: string[]
     company_id?: string | null
   }
 ) {
@@ -248,8 +248,8 @@ export async function getUsersService() {
 }
 
 export async function updateRolePermissionsService(
-  roleId: number,
-  permissionIds: number[]
+  roleId: string,
+  permissionIds: string[]
 ) {
   return prisma.$transaction(async tx => {
     const role = await tx.role.findUnique({ where: { id: roleId } })
