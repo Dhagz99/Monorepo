@@ -83,7 +83,7 @@ export async function createUserController(
 
 
 export async function updateUserController(req: Request, res: Response) {
-  const userId = Number(req.params.id)
+  const userId = req.params.id
 
   const parsed = updateUserSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -149,7 +149,7 @@ export async function updateRolePermissionsController(
   res: Response
 ) {
   try {
-    const roleId = Number(req.params.id)
+    const roleId =req.params.id
     const { permissionIds } = req.body
 
     if (!Array.isArray(permissionIds)) {

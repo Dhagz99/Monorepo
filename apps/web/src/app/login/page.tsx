@@ -5,7 +5,7 @@
 import { ShieldCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, LoginSchema } from "@repo/shared";
+import {  LoginSchema, LoginSchema1, loginSchema1 } from "@repo/shared";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/context/UserContext";
 import { useLogin } from "@/hooks/auth/useLogin";
@@ -22,8 +22,8 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginSchema>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<LoginSchema1>({
+    resolver: zodResolver(loginSchema1),
     defaultValues: {
       username: "",
       password: "",

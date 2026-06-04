@@ -12,6 +12,11 @@ export default async function seedRoles() {
       {
          code: "ADMIN_MANAGE",
          name: "Manage Admin"
+      },
+
+      {
+         code: "RUST_MANAGE",
+         name: "Manage Rust Connection"
       }
 
    ];
@@ -40,6 +45,10 @@ export default async function seedRoles() {
             permissions.map(
                (p) => p.code
             )
+      },
+      {
+         name: "BRANCH",
+         permissions: "RUST_MANAGE"
       }
 
    ];
