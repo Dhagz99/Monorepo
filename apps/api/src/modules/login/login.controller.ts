@@ -4,34 +4,77 @@ import { createUserService, getPermissionService, getRoleService, getUsersServic
 import { LoginDTO } from "./login.types";
 import { createUserSchema,updateUserSchema  } from "@repo/shared";
 
+
+
 export async function loginController(
   req: Request<{}, {}, LoginDTO>,
   res: Response
 ) {
   try {
-    const { token, user } = await loginUser(req.body);
+    const { token, user } =
+      await loginUser(req.body);
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure:
+        process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge:
+        7 * 24 * 60 * 60 * 1000,
       path: "/",
     });
 
-    res.status(200).json({ user });
-  }catch (error: any) {
-    if (error.message === "INVALID_USER" || error.message === "INVALID_PASSWORD") {
-      return res.status(401).json({
-        message: "Invalid username or password",
+    return res.status(200).json({
+      user,
+    });
+
+  } catch (error: unknown) {
+
+    if (!(error instanceof Error)) {
+      return res.status(500).json({
+        message: "Internal server error",
       });
     }
-    return res.status(500).json({
-      message: "Internal server error",
-    });
+
+    switch (error.message) {
+
+      case "ACCOUNT_DROPPED":
+        return res.status(403).json({
+          code: "ACCOUNT_DROPPED",
+          message:
+            "Your account has been dropped.",
+        });
+
+      case "ACCOUNT_SUSPENDED":
+        return res.status(403).json({
+          code: "ACCOUNT_SUSPENDED",
+          message:
+            "Your account has been suspended.",
+        });
+
+      case "ACCOUNT_INACTIVE":
+        return res.status(403).json({
+          code: "ACCOUNT_INACTIVE",
+          message:
+            "Your account is inactive.",
+        });
+
+      case "INVALID_USER":
+      case "INVALID_PASSWORD":
+        return res.status(401).json({
+          code: "INVALID_CREDENTIALS",
+          message:
+            "Invalid username or password",
+        });
+
+      default:
+        return res.status(500).json({
+          message:
+            "Internal server error",
+        });
+    }
   }
 }
-
 export async function createUserController(
    req: Request,
    res: Response

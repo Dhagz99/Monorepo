@@ -1,0 +1,981 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+import Image from "next/image";
+
+import Sidebar from "@/components/sidebarComp/sidebar";
+import { useAuth } from "@/components/context/UserContext";
+import { BellDot, Coins, Settings, User2, User2Icon } from "lucide-react";
+import SweetAlert from "@/components/modal/Swal";
+import { getErrorMessage } from "@/components/helper/errorHelper";
+import {useDebounce} from "use-debounce";
+import MainModal from "@/components/modal/mainModal";
+import { useForm } from "react-hook-form";
+import { createUserSchema, RegisterSchema } from "@repo/shared";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useCreateUser } from "@/hooks/user/useCreateUser";
+import { toast } from "sonner";
+import { AxiosError } from "axios";
+import OverrideRules from "./Settings/OverrideRules";
+import { useCommissionSettings, useMasterlistUsers } from "@/hooks/general/useGeneral";
+import ExpiredRules from "./Settings/ExpiredRules";
+import CodedRules from "./Settings/CodedRules";
+import ActiveUsers from "./Settings/ActiveUser";
+import InactiveUsers from "./Settings/InactiveUser";
+
+
+enum SettingsTab {
+  User = "user",
+  COMMISSION = "commission",
+  PERMISSIONS = "permissions",
+  BRANCH_SETTINGS = "branch-settings",
+  NOTIFICATIONS = "notifications",
+}
+
+
+export default function AMSLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+
+  const searchParams = useSearchParams();
+
+  const search =
+    searchParams.get("search") || "";
+
+  const [searchText, setSearchText] =
+    useState(search);
+
+  const [debouncedSearch] =
+    useDebounce(searchText, 500);
+
+  const page =
+    Number(searchParams.get("page")) || 1;
+
+
+  const createUserMutation =
+    useCreateUser()
+
+  const { user, loading, logout } = useAuth();
+
+  const [openSidebar, setOpenSidebar] = useState(true);
+
+  const [register, setRegister] = useState(false);
+
+  const [settings, setSettings] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    SettingsTab.User
+  );
+
+  const [commissionTab, setCommissionTab] = useState<
+    "coded" | "expired" | "override"
+  >("coded");
+
+  const [userTab, setUserTab] = useState<"active"|"inactive">("active");
+
+  const {
+    data,
+  } = useCommissionSettings();
+
+  const {
+    data: userList,
+  } = useMasterlistUsers({
+    page,
+    search,
+    status: userTab,
+  });
+  const [openProfile, setOpenProfile] = useState(false);
+
+
+  const form =
+    useForm<RegisterSchema>({
+      resolver:
+        zodResolver(createUserSchema),
+
+      defaultValues: {
+        email: "",
+        name: "",
+        username: "",
+        password: "",
+        roleIds: [1]
+      }
+    })
+
+  const onSubmit = (
+    data: RegisterSchema
+  ) => {
+    createUserMutation.mutate(data, {
+      onSuccess: () => {
+        toast.success(
+          "User created successfully"
+        )
+
+        form.reset()
+      },
+
+      onError: (error) => {
+        const axiosError = error as AxiosError<{
+          message: string
+        }>
+
+        toast.error(
+          axiosError.response?.data?.message ??
+          "Something went wrong"
+        )
+      }
+    })
+  }
+
+  useEffect(() => {
+
+    if (debouncedSearch === search) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        searchParams.toString()
+      );
+
+    params.set(
+      "search",
+      debouncedSearch
+    );
+
+    params.set(
+      "page",
+      "1"
+    );
+
+    router.replace(
+      `?${params.toString()}`
+    );
+
+  }, [
+    debouncedSearch,
+    search,
+    router,
+    searchParams,
+  ]);
+
+
+  // =========================
+  // PROTECTED ROUTE
+  // =========================
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [loading, user, router]);
+
+  // =========================
+  // LOADING SCREEN
+  // =========================
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        Loading...
+      </div>
+    );
+  }
+
+  // =========================
+  // BLOCK RENDER
+  // =========================
+  if (!user) return null;
+
+
+
+
+  const handleLogout = () => {
+
+    SweetAlert.confirmationAlert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      async () => {
+        try {
+
+          await logout();
+
+        } catch (error) {
+
+          SweetAlert.errorAlert(
+            "Account Signing Out Failed",
+            getErrorMessage(error)
+          );
+        }
+      }
+    );
+
+  };
+
+
+  const handleCloseRegistration = () => {
+    setRegister(false);
+    form.reset()
+  }
+  const handleCloseSetting = () => {
+    setSettings(false);
+  }
+  // =========================
+  // DASHBOARD LAYOUT
+  // =========================
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-white">
+
+      {/* HEADER */}
+      <header className="h-custom-64 shrink-0 bg-mainPrimary shadow-md flex items-center px-custom-24 z-60 
+          justify-between">
+        <Image
+          src="/images/AMSLOGO.svg"
+          alt="JameroGroupOfCompanies"
+          width={160}
+          height={160}
+          priority
+        />
+
+        <div className="flex gap-custom-16">
+
+          <button onClick={() => {
+            setSettings(true);
+          }} className=" flex items-center rounded-full text-white cursor-pointer hover:scale-105 duration-150 ease-in-out">
+            <BellDot size={22} />
+          </button>
+          
+          <button onClick={() => {
+            setSettings(true);
+          }} className=" flex items-center rounded-full text-white cursor-pointer hover:scale-105 duration-150 ease-in-out">
+            <Settings size={22} />
+          </button>
+
+          <div
+            onClick={() =>
+              setOpenProfile(true)
+            }
+            className="
+              relative
+              flex
+              items-center
+              justify-center
+              gap-custom-16
+              text-white
+              bg-lightPrimary
+              p-custom-8
+              sm:py-custom-8
+              sm:px-custom-16
+              rounded-lg
+              cursor-pointer
+              hover:scale-103
+              ease-in-out
+              duration-150
+            "
+          >
+            <div
+              className="
+                border
+                border-white
+                p-1
+                rounded-full
+              "
+            >
+              <User2 size={12} />
+            </div>
+            <p
+              className="
+                text-body
+                hidden
+                sm:flex
+              "
+            >
+              {user.username}
+            </p>
+          </div>
+
+
+        </div>
+
+
+        {openProfile && (
+          <div
+            onClick={() =>
+              setOpenProfile(false)
+            }
+            className="
+                      fixed
+                      inset-0
+                      z-999
+                      bg-black/40
+                      backdrop-blur-[2px]
+                      flex
+                      justify-end
+                    "
+          >
+            <div
+              onClick={(e) =>
+                e.stopPropagation()
+              }
+              className="
+                        w-full
+                        sm:w-100
+                        sm:h-screen
+                        h-fit
+                        bg-white
+                        shadow-2xl
+                        flex
+                        flex-col
+                        animate-in
+                        sm:slide-in-from-right
+                        fade-in-5
+                        duration-300
+                        p-custom-24
+                        max-h-screen
+                        overflow-y-auto
+                        sm:m-0
+                        mx-custom-32
+                        my-custom-48
+                        sm:rounded-none
+                        rounded-lg
+                        text-mainPrimary
+                      "
+            >
+              {/* HEADER */}
+              <div
+                className="
+                          flex
+                          items-center
+                          justify-between
+                          border-b
+                          border-neutralMed
+                          pb-custom-16
+                        "
+              >
+                <h1
+                  className="
+                            text-mdHeader
+                            font-bold
+                          "
+                >
+                  Admin Profile
+                </h1>
+
+                <button
+                  onClick={() =>
+                    setOpenProfile(false)
+                  }
+                  className="
+                            w-8
+                            h-8
+                            rounded-full
+                            bg-neutralLight
+                            hover:bg-neutralMed
+                            flex
+                            items-center
+                            justify-center
+                          "
+                >
+                  ✕
+                </button>
+              </div>
+
+
+              <div
+                className="
+                          my-custom-24
+                          flex
+                          flex-col
+                          gap-custom-16
+                        "
+              >
+
+
+
+                <div
+                  className="
+                              bg-neutralLight
+                              p-custom-16
+                              rounded-xl
+                              w-full
+                            "
+                >
+                  <h2
+                    className="
+                                text-xs
+                                text-neutralPrimary
+                              "
+                  >
+                    Username
+                  </h2>
+                  <p
+                    className="
+                                font-bold
+                                text-sm
+                              "
+                  >
+                    {user.username}
+                  </p>
+                </div>
+
+
+                <div
+                  className="
+                            bg-neutralLight
+                            p-custom-16
+                            rounded-xl
+                            w-full
+                          "
+                >
+                  <h2
+                    className="
+                              text-xs
+                              text-neutralPrimary
+                            "
+                  >
+                    Telephone
+                  </h2>
+
+                  <p className="font-bold text-sm">
+                    09123456273
+                  </p>
+                </div>
+
+
+                <div
+                  className="
+                            bg-neutralLight
+                            p-custom-16
+                            rounded-xl
+                          "
+                >
+                  <h2
+                    className="
+                              text-xs
+                              text-neutralPrimary
+                            "
+                  >
+                    Email Address
+                  </h2>
+
+                  <p className="font-bold text-sm">
+                    {user?.email}
+                  </p>
+                </div>
+
+
+
+                <div className="flex w-full justify-start items-center gap-custom-16 text-white">
+
+                  <button className="w-full text-xs bg-positive
+                             p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                    Edit Profile
+                  </button>
+
+                   <button onClick={() => {
+                    setRegister(true)
+                  }} className="w-full text-xs bg-mainPrimary text-white
+                              p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                    Register New Account
+                  </button>
+
+                 
+
+                </div>
+
+                <button onClick={handleLogout} className="w-full text-white text-xs bg-neutralPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                    Sign Out
+                </button>
+               
+
+
+
+
+
+
+              </div>
+
+
+
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* BODY */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* SIDEBAR */}
+        <aside
+          className={`
+            bg-neutralLight
+            transition-all duration-300
+            ${openSidebar ? "w-64" : "w-20"}
+            shrink-0
+            border-r border-neutralLight
+            shadow-md
+          `}
+        >
+          <Sidebar
+            isOpen={openSidebar}
+            onToggle={() => setOpenSidebar((prev) => !prev)}
+          />
+        </aside>
+
+        {/* PAGE CONTENT */}
+        <main className="flex-1 overflow-y-auto p-custom-8 bg-white">
+          {children}
+        </main>
+      </div>
+
+      {register && (
+        <MainModal size="md" onClose={handleCloseRegistration}>
+
+          <div
+            className="
+                flex
+                flex-col
+                gap-custom-16
+              "
+          >
+            <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+              <Image
+                src="/images/AMSLOGO.svg"
+                alt="JameroGroupOfCompanies"
+                width={160}
+                height={160}
+                priority
+              />
+            </div>
+
+            <div className="px-custom-32 flex flex-col gap-y-custom-8">
+              <h1 className="text-mdHeader font-bold text-mainPrimary">Registration Form</h1>
+              <p>Create a New Branch or Administration Account</p>
+            </div>
+
+            <form
+              onSubmit={form.handleSubmit(
+                onSubmit
+              )}
+              className="flex flex-col gap-y-custom-16 w-full px-custom-32 pb-custom-32"
+            >
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label htmlFor="name" className="font-bold text-xs">Email Address</label>
+                <input
+                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                  placeholder="Email"
+                  {...form.register("email")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label htmlFor="name" className="font-bold text-xs">Fullname</label>
+                <input
+                  id="name"
+                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                  placeholder="Name"
+                  {...form.register("name")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label htmlFor="name" className="font-bold text-xs">Username</label>
+                <input
+                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                  placeholder="Username"
+                  {...form.register(
+                    "username"
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label htmlFor="name" className="font-bold text-xs">Password</label>
+                <input
+                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                  type="password"
+                  placeholder="Password"
+                  {...form.register(
+                    "password"
+                  )}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="text-white p-3 rounded-lg text-body font-bold bg-mainPrimary cursor-pointer hover:bg-lightPrimary ease-in-out duration-150"
+                disabled={
+                  createUserMutation.isPending
+                }
+              >
+                {createUserMutation.isPending
+                  ? "Registering new user..."
+                  : "Register New User "}
+              </button>
+            </form>
+
+
+
+          </div>
+
+
+        </MainModal>
+
+      )}
+
+
+      {settings && (
+        <MainModal size="xl" onClose={handleCloseSetting}>
+          <div className="
+                flex
+                flex-col
+                gap-custom-16
+              "
+          >
+            <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+              <Image
+                src="/images/AMSLOGO.svg"
+                alt="JameroGroupOfCompanies"
+                width={160}
+                height={160}
+                priority
+              />
+            </div>
+
+
+
+            <div className="grid grid-cols-3 min-h-115">
+              {/* SIDEBAR */}
+              <ul
+                className="
+                    border-r
+                    border-neutralPrimary
+                    px-custom-24
+                    py-custom-16
+                    flex
+                    flex-col
+                    gap-y-custom-16
+                  "
+              >
+                <li
+                  onClick={() => setActiveTab(SettingsTab.User)}
+                  className={`
+                      flex
+                      gap-custom-16
+                      items-center
+                      rounded-lg
+                      px-custom-16
+                      py-custom-8
+                      cursor-pointer
+                      transition-all
+                      duration-150
+                      ${activeTab === "user"
+                      ? "bg-mainPrimary text-white shadow-md"
+                      : "text-neutralPrimary hover:bg-neutralLight"
+                    }
+                    `}
+                >
+                  <User2Icon size={18} />
+                  <span>Users</span>
+                </li>
+
+                <li
+                  onClick={() => setActiveTab(SettingsTab.COMMISSION)}
+                  className={`
+                      flex
+                      gap-custom-16
+                      items-center
+                      rounded-lg
+                      px-custom-16
+                      py-custom-8
+                      cursor-pointer
+                      ${activeTab === SettingsTab.COMMISSION
+                      ? "bg-mainPrimary text-white"
+                      : "text-neutralPrimary hover:bg-neutralLight"
+                    }
+                    `}
+                >
+                  <Coins size={18} />
+                  <span>Commission Rules</span>
+                </li>
+
+                <li
+                  onClick={() => setActiveTab(SettingsTab.PERMISSIONS)}
+                  className={`
+                      flex
+                      gap-custom-16
+                      items-center
+                      rounded-lg
+                      px-custom-16
+                      py-custom-8
+                      cursor-pointer
+                      ${activeTab === SettingsTab.PERMISSIONS
+                      ? "bg-mainPrimary text-white"
+                      : "text-neutralPrimary hover:bg-neutralLight"
+                    }
+                    `}
+                >
+                  <Coins size={18} />
+                  <span>Permissions</span>
+                </li>
+
+
+              </ul>
+
+              {/* CONTENT */}
+              <div className="col-span-2 px-custom-32 py-custom-16">
+                {activeTab === "user" && (
+                  <div className="flex flex-col gap-y-custom-24">
+
+                    <div className="text-xs grid grid-cols-3 gap-custom-16 border-b border-neutralMed pb-custom-8 ">
+
+                      <button
+                        onClick={() => setUserTab("active")}
+                        className={`
+                          px-custom-16
+                          py-custom-8
+                          rounded-lg
+                          cursor-pointer
+                          hover:scale-105
+                          ease-in-out
+                          duration-150
+                          ${userTab === "active"
+                            ? "bg-mainPrimary text-white"
+                            : "bg-neutralLight"
+                          }
+                        `}
+                      >
+                        Active Users
+                      </button>
+
+                      <button
+                        onClick={() => setUserTab("inactive")}
+                        className={`
+                          px-custom-16
+                          py-custom-8
+                          rounded-lg
+                          cursor-pointer
+                          hover:scale-105
+                          ease-in-out
+                          duration-150
+                          ${userTab === "inactive"
+                            ? "bg-mainPrimary text-white"
+                            : "bg-neutralLight"
+                          }
+                        `}
+                      >
+                        Inactive Users
+                      </button>
+                          
+                      <input
+                        type="text"
+                        value={searchText}
+                        placeholder="Search users..."
+                        onChange={(e) =>
+                          setSearchText(
+                            e.target.value
+                          )
+                        }
+                        className="
+                          w-full
+                          px-custom-16
+                          py-custom-8
+                          border
+                          border-neutralMed
+                          rounded-lg
+                          bg-white
+                        "
+                      />
+
+                    </div>
+
+                    {userTab === "active" && (
+                      <ActiveUsers
+                        Users={userList?.data ?? []}
+                      />
+                    )}
+
+                    {userTab == "inactive" && (
+                      <InactiveUsers
+                        Users={userList?.data ?? []}
+                      />
+                    )}
+
+
+                    <div className="flex justify-between items-center">
+                        <p className="text-sm text-neutralPrimary">
+                          Page {userList?.page ?? 1} of {userList?.totalPages ?? 1}
+                        </p>
+
+                        <div className="flex gap-custom-8">
+                          <button
+                            disabled={(userList?.page ?? 1) <= 1}
+                            onClick={() => {
+                              const params = new URLSearchParams(
+                                searchParams.toString()
+                              );
+
+                              params.set(
+                                "page",
+                                String((userList?.page ?? 1) - 1)
+                              );
+
+                              router.replace(
+                                `?${params.toString()}`
+                              );
+                            }}
+                            className="
+                              px-custom-16
+                              py-custom-8
+                              rounded-lg
+                              bg-neutralLight
+                              disabled:opacity-50
+                            "
+                          >
+                            Previous
+                          </button>
+
+                          <button
+                            disabled={
+                              (userList?.page ?? 1) >=
+                              (userList?.totalPages ?? 1)
+                            }
+                            onClick={() => {
+                              const params = new URLSearchParams(
+                                searchParams.toString()
+                              );
+
+                              params.set(
+                                "page",
+                                String((userList?.page ?? 1) + 1)
+                              );
+
+                              router.replace(
+                                `?${params.toString()}`
+                              );
+                            }}
+                            className="
+                              px-custom-16
+                              py-custom-8
+                              rounded-lg
+                              bg-mainPrimary
+                              text-white
+                              disabled:opacity-50
+                            "
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+
+                  </div>
+
+
+                )}
+
+                {activeTab === SettingsTab.COMMISSION && (
+                  <div className="flex flex-col gap-custom-24">
+
+                    
+                    {/* SUB NAVIGATION */}
+                    <div className="text-xs grid grid-cols-3 gap-custom-16 border-b border-neutralMed pb-custom-8 ">
+
+                      <button
+                        onClick={() => setCommissionTab("coded")}
+                        className={`
+                          px-custom-16
+                          py-custom-8
+                          rounded-lg
+                          cursor-pointer
+                          hover:scale-105
+                          ease-in-out
+                          duration-150
+                          ${commissionTab === "coded"
+                            ? "bg-mainPrimary text-white"
+                            : "bg-neutralLight"
+                          }
+                        `}
+                      >
+                        Coded Rules
+                      </button>
+
+                      <button
+                        onClick={() => setCommissionTab("expired")}
+                        className={`
+                          px-custom-16
+                          py-custom-8
+                          rounded-lg
+                          cursor-pointer
+                          hover:scale-105
+                          ease-in-out
+                          duration-150
+                          ${commissionTab === "expired"
+                            ? "bg-mainPrimary text-white"
+                            : "bg-neutralLight"
+                          }
+                        `}
+                      >
+                        Expired Rules
+                      </button>
+
+                      <button
+                        onClick={() => setCommissionTab("override")}
+                        className={`
+                          px-custom-16
+                          py-custom-8
+                          rounded-lg
+                          cursor-pointer
+                          hover:scale-105
+                          ease-in-out
+                          duration-150
+                          ${commissionTab === "override"
+                            ? "bg-mainPrimary text-white"
+                            : "bg-neutralLight"
+                          }
+                        `}
+                      >
+                        Override Rules
+                      </button>
+
+                    </div>
+
+                    {/* CODED */}
+                    {commissionTab === "coded" && (
+                      <CodedRules
+                        rules={data?.commissionRules ?? []}
+                      />
+                    )}
+
+                    {/* EXPIRED */}
+                    {commissionTab === "expired" && (
+                      <ExpiredRules
+                        rules={data?.commissionRules ?? []}
+                      />
+                    )}
+
+                    {/* OVERRIDE */}
+                    {commissionTab === "override" && (
+                      <OverrideRules
+                        rules={data?.overrideRules ?? []}
+                      />
+                    )}
+
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+            <div></div>
+
+
+
+          </div>
+        </MainModal>
+      )}
+    </div>
+  );
+}

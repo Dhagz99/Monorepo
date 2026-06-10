@@ -4,8 +4,16 @@ async function main() {
   const permissions = [
  
     { code: "USER_MANAGE", name: "Manage Users" },
-    { code: "ADMIN_MANAGE", name: "Manage Admin" }
+    { code: "ADMIN_MANAGE", name: "Manage Admin" },
+    { code: "DEV_ADMIN", name:"Super Admin"},
+    { code: "BOD_ADMIN", name: "Reports, Analytics and Agents"},
+    { code: "BRANCH_MANAGE", name: "Branch Manager"},
+    { code: "OPERATION_ADMIN", name: "Operation Manager"},
+    { code: "REGULAR_USER", name: "Regular User"},
+
   ]
+
+  
 
   for (const p of permissions) {
     await prisma.permission.upsert({
@@ -15,8 +23,20 @@ async function main() {
     })
   }
 
+  
+
+  const adminPermissions = permissions
+  .filter(p => p.code !== "REGULAR_USER")
+  .map(p => p.code)
+
   const roles = [
-    { name: "ADMIN", permissions: permissions.map(p => p.code) },
+    { name: "ADMIN", permissions: adminPermissions },
+
+    { name: "DEV", permissions: adminPermissions },
+    { name: "BOD_ADMIN", permissions: ["BOD_ADMIN"]},
+    { name: "AGENT_ACC", permissions: ["REGULAR_USER"]},
+    { name: "OPERATIONS", permissions: ["OPERATION_ADMIN"]},
+    { name: "BRANCH_ACC", permissions: ["BRANCH_MANAGE"]}
 
   ]
 

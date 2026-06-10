@@ -1,8 +1,15 @@
 import type { Metadata } from "next"
+import { Roboto } from "next/font/google";
 import "./globals.css"
 
 import ReactQueryProvider from "@/providers/ReactQueryProvider"
 import { Toaster } from "sonner"
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: "App",
@@ -15,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en"  className={roboto.variable}>
       <body>
         <ReactQueryProvider>
           {children}

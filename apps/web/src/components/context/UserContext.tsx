@@ -6,11 +6,38 @@ import { createContext, useContext, useEffect, useState } from "react"
 
 type User = {
   id: number
+
   username: string
-  name: string
+
+  email?: string | null
+
   roles: string[]
+
+  branch?: {
+    branchCode: string
+    companyName?: string | null
+    location?: string | null
+  } | null
+
   permissions: string[]
-  company_id:string;
+
+  agent?: {
+    id: string
+
+    fullName: string
+
+    agentCode: string
+
+    level: string
+
+    status: string
+
+    accountType: string
+
+    email?: string | null
+
+    telephone?: string | null
+  } | null
 }
 
 type AuthContextType = {
@@ -19,7 +46,9 @@ type AuthContextType = {
   setUser: (user: User | null) => void
   logout: () => Promise<void>
   hasRole: (role: string) => boolean
-  refreshUser: () => Promise<void>
+
+  refreshUser: () => Promise<User | null>
+
   hasPermission: (permission: string) => boolean
 }
 
@@ -43,12 +72,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = "/login"
   }
 
-  const refreshUser = async () => {
+ const refreshUser = async (): Promise<User | null> => {
     try {
-      const res = await api.get("/auth/me")
-      setUser(res.data)
+
+      const res = await api.get("/auth/me");
+
+      setUser(res.data);
+
+      return res.data;
+
     } catch {
-      setUser(null)
+
+      setUser(null);
+
+      return null;
     }
   }
   

@@ -6,7 +6,14 @@ export async function me(req: Request, res: Response) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
+
     include: {
+
+      agent: true,
+
+      branch: true,
+
+
       roles: {
         include: {
           role: {
@@ -34,13 +41,54 @@ export async function me(req: Request, res: Response) {
 
   const roles = user.roles.map(r => r.role.name)
 
-  res.json({
-    id: user.id,
-    name: user.name,
-    username: user.username,
-    roles,
-    permissions
-  })
+res.json({
+  id: user.id,
+
+  name: user.name,
+
+  username: user.username,
+
+  email: user.email,
+
+  branch: user.branch
+    ? {
+        branchCode: user.branch.branchCode,
+        companyName: user.branch.companyName,
+        location: user.branch.location,
+      }
+    : null,
+
+  roles,
+
+  permissions,
+
+  agent: user.agent
+    ? {
+        id: user.agent.id,
+
+        fullName:
+          user.agent.fullName,
+
+        agentCode:
+          user.agent.agentCode,
+
+        level:
+          user.agent.level,
+
+        status:
+          user.agent.status,
+
+        accountType:
+          user.agent.accountType,
+
+        email:
+          user.agent.email,
+
+        telephone:
+          user.agent.telephone,
+      }
+    : null,
+})
 }
 
 export function logout(req: Request, res: Response) {

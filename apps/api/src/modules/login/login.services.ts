@@ -10,7 +10,11 @@ export async function loginUser(params: LoginDTO) {
 
   const user = await prisma.user.findUnique({
     where: { username },
+
     include: {
+
+      agent: true,
+
       roles: {
         include: {
           role: {
@@ -28,9 +32,44 @@ export async function loginUser(params: LoginDTO) {
   })
 
 
-  if (!user || !user.isActive) {
-    throw new Error("INVALID_USER")
+if (!user) {
+  throw new Error("INVALID_USER");
+}
+
+if (!user.isActive) {
+
+  const latestNotification =
+    await prisma.agentNotification.findFirst({
+      where: {
+        agentId: user.agentId ?? undefined,
+        type: {
+          in: [
+            "MAINTENANCE_DROPPED",
+            "MAINTENANCE_SUSPENDED"
+          ]
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+  if (
+    latestNotification?.type ===
+    "MAINTENANCE_DROPPED"
+  ) {
+    throw new Error("ACCOUNT_DROPPED");
   }
+
+  if (
+    latestNotification?.type ===
+    "MAINTENANCE_SUSPENDED"
+  ) {
+    throw new Error("ACCOUNT_SUSPENDED");
+  }
+
+  throw new Error("ACCOUNT_INACTIVE");
+}
  
 
   const isPasswordValid = await bcrypt.compare(password, user.password)
@@ -58,11 +97,41 @@ export async function loginUser(params: LoginDTO) {
 
   return {
     token,
+
     user: {
       id: user.id,
+
       username: user.username,
+
+      email: user.email,
+
       roles,
-      permissions
+
+      permissions,
+
+      agent: user.agent
+        ? {
+            id: user.agent.id,
+
+            fullName:
+              user.agent.fullName,
+
+            agentCode:
+              user.agent.agentCode,
+
+            level:
+              user.agent.level,
+
+            status:
+              user.agent.status,
+
+            accountType:
+              user.agent.accountType,
+
+            email:
+              user.agent.email,
+          }
+        : null,
     }
   }
 }

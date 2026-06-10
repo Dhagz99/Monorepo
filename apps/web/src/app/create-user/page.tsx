@@ -67,7 +67,7 @@ export default function CreateUserPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-[450px]">
+      <Card className="w-112.5">
         <CardContent className="p-6">
           <form
             onSubmit={form.handleSubmit(
