@@ -383,6 +383,42 @@ export const createCommissionScan = async ({
       }
 
 
+      const activeCycle =
+        await tx.agentMaintenanceCycle.findFirst({
+          where: {
+            agentId: scanData.agent.id,
+            status: "ACTIVE",
+          },
+        });
+
+      if (!activeCycle) {
+        throw new Error(
+          "No active maintenance cycle found"
+        );
+      }
+
+      const newRequiredSales =
+        Math.max(
+          activeCycle.requiredSales - 1,
+          0
+        );
+
+      await tx.agentMaintenanceCycle.update({
+        where: {
+          id: activeCycle.id,
+        },
+        data: {
+          requiredSales:
+            newRequiredSales,
+
+          completedSales:
+            activeCycle.completedSales + 1,
+
+          remainingSales:
+            newRequiredSales,
+        },
+      });
+
 
       await tx.dailyClientDetails.update({
         where: {
@@ -393,6 +429,8 @@ export const createCommissionScan = async ({
             "SCANNED",
         },
       });
+
+
 
       return commissionScan;
     }

@@ -1124,7 +1124,7 @@ export default function ClientsPage() {
                             text-neutralPrimary
                           "
                         >
-                          Commission Status
+                          Loan Term
                         </h2>
                         <p
                           className="
@@ -1132,7 +1132,7 @@ export default function ClientsPage() {
                             text-sm
                           "
                         >
-                          {commissionDetails?.client.clientStatus}
+                          {commissionDetails?.client.term}
                         </p>
                       </div>
                     </div>
