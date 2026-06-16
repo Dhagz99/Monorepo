@@ -185,48 +185,6 @@ export interface GetMasterlistResponse {
 
 
 
-export interface GetMasterlistParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: string;
-}
-
-export interface MasterlistBranch {
-  branch: {
-    branchCode: string;
-    companyName?: string;
-  };
-}
-
-export interface Masterlists {
-  id:string
-  agentCode: string;
-
-  accountType: string;
-
-  fullName: string;
-
-  level: string;
-
-  status: string;
-
-  branches: MasterlistBranch[];
-}
-
-export interface GetMasterlistResponse {
-  data: Masterlists[];
-
-  total: number;
-
-  page: number;
-
-  limit: number;
-
-  totalPages: number;
-}
-
-
 
 export interface GetTransactionParams {
   agentId: string;

@@ -3,30 +3,91 @@
 import { useDroppedorSuspendedAgentStatus, useMasterlistAgents } from "@/hooks/agents/useAgent";
 // import SweetAlert from "@/components/modal/Swal";
 // import Swal from "sweetalert2";
-import { useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname,useSearchParams, useRouter } from "next/navigation";
 
 import {
+  CalendarX2,
   ChevronLeft,
   ChevronRight,
   Edit,
   Inspect,
   Trash,
+  UserCheck,
+  UserMinus,
+  UserX,
 } from "lucide-react";
 import ModuleHeader from "@/components/ui/commonUi/page.header";
 import QRCode from "react-qr-code";
 import SweetAlert from "@/components/modal/Swal";
 import Swal from "sweetalert2";
+import AppsTab from "@/components/ui/commonUi/general.tab";
+
+
+type TABKEY =
+  | "ACTIVE"
+  | "EXPIRED"
+  | "DROPPED"
+  | "SUSPENDED";
+
+
 
 export default function Masterlist() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const page =
     Number(searchParams.get("page")) || 1;
 
-  const search =
-    searchParams.get("search") || "";
+  const searchParam = searchParams.get("search") || "";
+
+  const [search, setSearch] =
+    useState(searchParam);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const params =
+        new URLSearchParams(
+          searchParams.toString()
+        );
+
+      if (search.trim() === "") {
+        params.delete("search");
+      } else {
+        params.set("search", search);
+      }
+
+      params.set("page", "1");
+
+      router.replace(
+        `${pathname}?${params.toString()}`,
+        {
+          scroll: false,
+        }
+      );
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [
+    search,
+    pathname,
+    router,
+    searchParams,
+  ]);
+  
+  const initialTab =
+    (searchParams.get(
+      "tab"
+    ) as TABKEY) ??
+    "ACTIVE";
+
+    
+  const [activeTab, setActiveTab] =
+      useState<TABKEY>(
+        initialTab
+      );
+  
 
   const {
     data,
@@ -34,79 +95,123 @@ export default function Masterlist() {
   } = useMasterlistAgents({
     page,
     search,
-    status: "PENDING",
+    status: activeTab,
   });
 
-  const updateQueryParams = (
-    key: string,
-    value: string | number
+
+  const updateQueryParams = (key: string, value: string | number) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (value === "") {
+      params.delete(key);
+    } else {
+      params.set(key, String(value));
+    }
+
+    router.replace(`${pathname}?${params.toString()}`);
+  };
+
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  const updateStatusMutation = useDroppedorSuspendedAgentStatus();
+
+  const handleRemoveAgent = async (
+    agentId: string,
+    status: "DROPPED" | "SUSPENDED"
   ) => {
+
+    const action =
+      status === "DROPPED"
+        ? "Drop"
+        : "Suspend";
+
+    SweetAlert.confirmationAlert(
+      `${action} Agent`,
+      `Are you sure you want to ${action.toLowerCase()} this agent?`,
+      async () => {
+
+        try {
+
+          SweetAlert.loadingAlert(
+            `${action}ing Agent`,
+            "Please wait..."
+          );
+
+          await updateStatusMutation.mutateAsync({
+            agentId,
+            status,
+          });
+
+          Swal.close();
+
+          await SweetAlert.successAlert(
+            `${action} Successful`,
+            `Agent ${action.toLowerCase()}d successfully`
+          );
+
+        } catch (error) {
+
+          console.error(error);
+
+          Swal.close();
+
+          SweetAlert.errorAlert(
+            `${action} Failed`,
+            "Something went wrong."
+          );
+        }
+      }
+    );
+  };
+
+
+  const TABS: {
+    key: TABKEY;
+    label: string;
+    icon: React.ElementType;
+  }[] = [
+    {
+      key: "ACTIVE",
+      label: "Active Agents",
+      icon: UserCheck,
+    },
+    {
+      key: "EXPIRED",
+      label: "Expired Agents",
+      icon: CalendarX2,
+    },
+    {
+      key: "SUSPENDED",
+      label: "Suspended Agents",
+      icon: UserX,
+    },
+     {
+      key: "DROPPED",
+      label: "Dropped Agents",
+      icon: UserMinus,
+    },
+  ];
+
+  const changeTab = (
+    tab: TABKEY
+  ) => {
+    setActiveTab(tab);
 
     const params =
       new URLSearchParams(
         searchParams.toString()
       );
 
-    params.set(key, String(value));
+    params.set("tab", tab);
+    params.set("page", "1");
 
     router.replace(
-      `/Agents?${params.toString()}`
+      `?${pathname}?${params.toString()}`,
+      {
+        scroll: false,
+      }
     );
   };
-
-
-
-  const [openDropdown, setOpenDropdown] =
-  useState<string | null>(null);
-  const updateStatusMutation = useDroppedorSuspendedAgentStatus();
-const handleRemoveAgent = async (
-  agentId: string,
-  status: "DROPPED" | "SUSPENDED"
-) => {
-
-  const action =
-    status === "DROPPED"
-      ? "Drop"
-      : "Suspend";
-
-  SweetAlert.confirmationAlert(
-    `${action} Agent`,
-    `Are you sure you want to ${action.toLowerCase()} this agent?`,
-    async () => {
-
-      try {
-
-        SweetAlert.loadingAlert(
-          `${action}ing Agent`,
-          "Please wait..."
-        );
-
-        await updateStatusMutation.mutateAsync({
-          agentId,
-          status,
-        });
-
-        Swal.close();
-
-        await SweetAlert.successAlert(
-          `${action} Successful`,
-          `Agent ${action.toLowerCase()}d successfully`
-        );
-
-      } catch (error) {
-
-        console.error(error);
-
-        Swal.close();
-
-        SweetAlert.errorAlert(
-          `${action} Failed`,
-          "Something went wrong."
-        );
-      }
-    }
-  );
-};
 
 
     
@@ -120,45 +225,43 @@ const handleRemoveAgent = async (
               />
               <div className="w-full flex justify-end">
 
-              <input
-                type="text"
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => {
-
-                  const value = e.target.value;
-
-                  const params =
-                    new URLSearchParams(
-                      searchParams.toString()
-                    );
-
-                  params.set("search", value);
-                  params.set("page", "1");
-
-                  router.replace(
-                    `/Agents?${params.toString()}`
-                  );
-                }}
-                className="
-                  max-w-80
-                  min-w-80
-                  h-custom-48
-                  rounded-md
-                  border
-                  border-slate-300
-                  px-4
-                  outline-none
-                  focus:ring-1
-                  focus:ring-mainPrimary
-                  focus:border-mainPrimary
-                  transition
-                  shadow-sm
-                "
-              />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) =>
+                setSearch(e.target.value)
+              }
+            className="
+              max-w-80
+              min-w-80
+              h-custom-48
+              rounded-md
+              border
+              border-slate-300
+              px-4
+              outline-none
+              focus:ring-1
+              focus:ring-mainPrimary
+              focus:border-mainPrimary
+              transition
+              shadow-sm
+            "
+          />
 
             </div>
         </div>
+
+
+              <AppsTab
+                tabs={TABS}
+                activeTab={activeTab}
+                changeTab={(key) =>
+                  changeTab(
+                    key as TABKEY
+                  )
+                }
+              />
 
     <div
       className="
@@ -170,8 +273,6 @@ const handleRemoveAgent = async (
     >
 
 
-
-      {/* TABLE */}
       <div className="bg-white shadow-sm rounded-xl overflow-hidden">
 
         <table className="w-full border-collapse">
@@ -206,7 +307,6 @@ const handleRemoveAgent = async (
 
           <tbody>
 
-            {/* LOADING */}
             {isLoading && (
               <tr>
 
@@ -220,7 +320,7 @@ const handleRemoveAgent = async (
               </tr>
             )}
 
-            {/* EMPTY */}
+    
             {!isLoading &&
               data?.data.length === 0 && (
                 <tr>
@@ -233,13 +333,13 @@ const handleRemoveAgent = async (
                       text-neutralPrimary
                     "
                   >
-                    No pending agents found.
+                    NO {activeTab} AGENTS FOUND.
                   </td>
 
                 </tr>
               )}
 
-            {/* DATA */}
+
             {!isLoading &&
               data?.data.map(
                 (agent, index) => (
@@ -253,7 +353,7 @@ const handleRemoveAgent = async (
                     "
                   >
 
-                    {/* DATE */}
+            
                     <td className="text-left px-6 py-4 font-semibold">
 
                       <QRCode
@@ -264,14 +364,14 @@ const handleRemoveAgent = async (
                     
                     </td>
 
-                    {/* NAME */}
-                    <td className="text-left px-6 py-4 font-semibold">
+                  
+                    <td className="text-left px-6 py-4 font-semibold capitalize">
 
                       {agent.fullName}
 
                     </td>
 
-                    {/* LEVEL */}
+                
                     <td className="text-left px-6 py-4 font-semibold">
 
                       {agent.level}
@@ -465,7 +565,6 @@ const handleRemoveAgent = async (
 
         </table>
 
-        {/* PAGINATION */}
         <div
           className="
             flex
@@ -497,7 +596,6 @@ const handleRemoveAgent = async (
 
           <div className="flex items-center gap-3">
 
-            {/* PREVIOUS */}
             <button
               disabled={page === 1}
               onClick={() =>
@@ -528,7 +626,6 @@ const handleRemoveAgent = async (
 
             </button>
 
-            {/* PAGE */}
             <div
               className="
                 w-full
@@ -546,7 +643,6 @@ const handleRemoveAgent = async (
               {page}
             </div>
 
-            {/* NEXT */}
             <button
               disabled={
                 page ===

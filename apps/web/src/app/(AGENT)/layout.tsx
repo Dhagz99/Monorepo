@@ -15,7 +15,8 @@ import MainModal from "@/components/modal/mainModal";
 import { useForm } from "react-hook-form";
 import { updateAccSchema, UpdateAgentAccSchema } from "@repo/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useUpdateAgentAccount } from "@/hooks/agents/useAgent";
+import { useAgentDetails, useUpdateAgentAccount } from "@/hooks/agents/useAgent";
+import { useCheckReactivation, useSelfReactivate } from "@/hooks/reactivation/useReactivation";
 
 export default function AgentLayout({
   children,
@@ -28,6 +29,7 @@ export default function AgentLayout({
   const { user, loading, logout,refreshUser } =
     useAuth();
 
+  const {data: agent} = useAgentDetails({agentId:user?.agent?.id as string});
   const {
     mutateAsync:
     updateAgentAccount
@@ -38,7 +40,21 @@ export default function AgentLayout({
 
     const [agentUpdate, setAgentUpdate] = useState(false);
 
-  
+    const [reactivation, setReactivation] = useState(false);
+
+
+  const {
+    data: reactivationStatus,
+    isLoading: isCheckingReactivation,
+    isError: isReactivationCheckError,
+    error: reactivationCheckError,
+  } = useCheckReactivation(reactivation);
+
+  const {
+    mutateAsync: selfReactivate,
+    isPending: isReactivating,
+  } = useSelfReactivate();
+    
 
   const form =
         useForm<UpdateAgentAccSchema>({
@@ -219,6 +235,30 @@ export default function AgentLayout({
     );
   };
 
+  const handleCloseReactivation = () => {
+    setReactivation(false)
+  }
+
+  const handleSelfReactivation = async () => {
+    try {
+      await selfReactivate();
+
+      await refreshUser();
+
+      SweetAlert.successAlert(
+        "Account Reactivated",
+        "Your account has been successfully reactivated."
+      );
+
+      setReactivation(false);
+    } catch (error) {
+      SweetAlert.errorAlert(
+        "Reactivation Failed",
+        getErrorMessage(error)
+      );
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-linear-to-b from-mainPrimary to-mainPrimary">
           
@@ -383,7 +423,7 @@ export default function AgentLayout({
                 "
               >
 
-                <div className="w-full flex flex-col items-center justify-center gap-custom-16">
+                <div className="w-full flex flex-col items-center justify-center gap-custom-8">
                       
                           <QRCode
                               value={user?.agent?.agentCode || ""}
@@ -392,6 +432,20 @@ export default function AgentLayout({
                           
 
                           <h6>{user?.agent?.agentCode}</h6>
+                          <div className="flex flex-wrap gap-2">
+
+                            {agent?.branches.map((branch) => (
+
+                              <strong
+                                key={branch.id}
+                                className="text-darkPrimary text-body"
+                              >
+                                ( {branch.branch.companyName} )
+                              </strong>
+
+                            ))}
+
+                          </div>
                 </div>
 
   
@@ -478,11 +532,20 @@ export default function AgentLayout({
                       Edit Profile
                     </button>
 
-                    <button   onClick={handleLogout} className="w-full text-xs bg-neutralPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
-                      Sign Out
+                    <button
+                      onClick={() => {
+                        setReactivation(true);
+                      }}
+                      className="w-full text-xs text-white bg-mainPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150"
+                    >
+                      Reactivation
                     </button>
 
                 </div>
+
+                <button   onClick={handleLogout} className="w-full text-xs text-white bg-neutralPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                      Sign Out
+                </button>
 
 
               </div>
@@ -499,6 +562,160 @@ export default function AgentLayout({
         {children}
       </main>
 
+      {reactivation && (
+        <MainModal
+          size="lg"
+          onClose={handleCloseReactivation}
+        >
+          <div className="flex flex-col gap-custom-16">
+            <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+              <Image
+                src="/images/AMSLOGO.svg"
+                alt="JameroGroupOfCompanies"
+                width={160}
+                height={160}
+                priority
+              />
+            </div>
+
+            <div className="px-custom-32 flex flex-col gap-y-custom-8">
+              <h1 className="text-mdHeader font-bold text-mainPrimary">
+                Request For Reactivation
+              </h1>
+
+              <p>
+                Check your self-reactivation period based on your expiration date.
+              </p>
+            </div>
+
+            <div className="px-custom-32 pb-custom-32 flex flex-col gap-custom-16">
+              {isCheckingReactivation ? (
+                <div className="bg-neutralLight p-custom-16 rounded-xl">
+                  Checking reactivation eligibility...
+                </div>
+              ) : isReactivationCheckError ? (
+                <div className="bg-negative/10 text-negative p-custom-16 rounded-xl">
+                  {getErrorMessage(reactivationCheckError)}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-custom-16">
+                    <div className="bg-neutralLight p-custom-16 rounded-xl">
+                      <p className="text-xs text-neutralPrimary">
+                        Agent Status
+                      </p>
+
+                      <h2 className="font-bold text-mainPrimary">
+                        {reactivationStatus?.agentStatus ?? "N/A"}
+                      </h2>
+                    </div>
+
+                    <div className="bg-neutralLight p-custom-16 rounded-xl">
+                      <p className="text-xs text-neutralPrimary">
+                        Days Expired
+                      </p>
+
+                      <h2 className="font-bold text-mainPrimary">
+                        {reactivationStatus?.daysExpired ?? 0} days
+                      </h2>
+                    </div>
+
+                    <div className="bg-neutralLight p-custom-16 rounded-xl">
+                      <p className="text-xs text-neutralPrimary">
+                        Remaining Days
+                      </p>
+
+                      <h2 className="font-bold text-mainPrimary">
+                        {reactivationStatus?.remainingDays ?? 0} days
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="bg-neutralLight p-custom-16 rounded-xl">
+                    <p className="text-xs text-neutralPrimary">
+                      Reactivation Phase
+                    </p>
+
+                    <h2 className="font-bold text-mainPrimary">
+                      {reactivationStatus?.phase ?? "N/A"}
+                    </h2>
+                  </div>
+
+                  <div
+                    className={`
+                      p-custom-16
+                      rounded-xl
+                      text-sm
+                      ${
+                        reactivationStatus?.eligible
+                          ? "bg-positive/10 text-positive"
+                          : "bg-negative/10 text-negative"
+                      }
+                    `}
+                  >
+                    {reactivationStatus?.message}
+                  </div>
+
+                      
+                 {
+                reactivationStatus?.phase === "REACTIVATION_VIA_ADMIN" ? (
+                  <button
+                    type="button"
+                    onClick={handleSelfReactivation}
+                    className="
+                      w-full
+                      text-white
+                      bg-mainPrimary
+                      p-3
+                      rounded-lg
+                      font-bold
+                      disabled:opacity-50
+                      disabled:cursor-not-allowed
+                      cursor-pointer
+                      hover:bg-lightPrimary
+                      ease-in-out
+                      duration-150
+                    "
+                  >
+                    {isReactivating
+                      ? "Reactivating..."
+                      : "Reactivate via Admin Approval"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={
+                      !reactivationStatus?.eligible ||
+                      isReactivating
+                    }
+                    onClick={handleSelfReactivation}
+                    className="
+                      w-full
+                      text-white
+                      bg-mainPrimary
+                      p-3
+                      rounded-lg
+                      font-bold
+                      disabled:opacity-50
+                      disabled:cursor-not-allowed
+                      cursor-pointer
+                      hover:bg-lightPrimary
+                      ease-in-out
+                      duration-150
+                    "
+                  >
+                    {isReactivating
+                      ? "Reactivating..."
+                      : "Self Reactivate Account"}
+                  </button>
+                )
+              }
+                </>
+              )}
+            </div>
+          </div>
+        </MainModal>
+      )}
 
       {agentUpdate && (
           <MainModal size="md"   onClose={handleCloseAgentUpdate}>

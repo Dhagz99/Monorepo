@@ -110,7 +110,13 @@ export const useMasterlistAgents = (
   params: GetMasterlistParams
 ) => {
   return useQuery({
-    queryKey: ["masterlist", params],
+    queryKey: [
+      "masterlist",
+      params.page,
+      params.limit,
+      params.search,
+      params.status,
+    ],
 
     queryFn: () =>
       getMasterlistService(params),

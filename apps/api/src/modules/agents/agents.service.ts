@@ -863,21 +863,27 @@ export const agentMasterlist = async ({
   page = 1,
   limit = 10,
   search,
+  status,
 }: GetMasterlistParams) => {
-
   const skip = (page - 1) * limit;
 
   const whereCondition = {
-    status: {
-      notIn: [
-        AgentStatus.PENDING,
-        AgentStatus.REJECTED,
-      ],
-    },
+    ...(status
+      ? {
+          status: status as AgentStatus,
+        }
+      : {
+          status: {
+            notIn: [
+              AgentStatus.PENDING,
+              AgentStatus.REJECTED,
+            ],
+          },
+        }),
 
-    ...(search && {
+    ...(search?.trim() && {
       fullName: {
-        contains: search,
+        contains: search.trim(),
         mode: "insensitive" as const,
       },
     }),
@@ -886,15 +892,11 @@ export const agentMasterlist = async ({
   const [data, total] = await Promise.all([
     prisma.agent.findMany({
       where: whereCondition,
-
       skip,
-
       take: limit,
-
       orderBy: {
         createdAt: "desc",
       },
-
       include: {
         branches: {
           include: {

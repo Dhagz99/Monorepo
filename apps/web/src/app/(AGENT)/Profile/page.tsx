@@ -19,6 +19,7 @@ export default function AgentProfile() {
 
     const {data: agent, isLoading} = useAgentDetails({agentId:user?.agent?.id as string});
 
+
     const {mutateAsync: markRead,} = useMarkNotificationsRead();
 
     const [openTransact, setOpenTransact] = useState(false);
@@ -312,7 +313,7 @@ export default function AgentProfile() {
                 <div className="flex flex-col gap-custom-32">
                     <div
                         className="
-                        bg-neutralMed
+                        bg-white
                         p-custom-24
                         rounded-xl
                         flex
@@ -332,7 +333,13 @@ export default function AgentProfile() {
                                     
                                 </div>
             
-                                <div className="w-full px-custom-16 text-white text-body py-1 bg-positive rounded-lg text-center">{user?.agent?.status}</div>
+                                <div className={`
+                                  w-full px-custom-16 
+                                  text-white text-body 
+                                  py-1 
+                                  ${user?.agent?.status === "ACTIVE" ? "bg-positive":user?.agent?.status === "EXPIRED" ? "bg-negative" : "bg-secondary"}
+                                  
+                                  rounded-lg text-center`}>{user?.agent?.status}</div>
                             </div>
             
                         <div className="flex flex-col gap-y-custom-8 relative z-10 w-full ">
@@ -344,6 +351,8 @@ export default function AgentProfile() {
                                     text-mainPrimary
                                     text-mdHeader
                                     sm:text-secondaryHeader
+                                    capitalize
+                                    text-shadow-sm
                                     "
                                 >
                                         {user?.agent?.fullName}
@@ -351,6 +360,7 @@ export default function AgentProfile() {
                             </div>
                             <div
                                 className="
+                                shadow-sm
                                 w-full
                                 flex
                                 justify-start
@@ -381,8 +391,9 @@ export default function AgentProfile() {
                                 Agent Level
                                 </h6>
                             </div>
-                                        <div
+                            <div
                                 className="
+                                shadow-sm
                                 w-full
                                 flex
                                 justify-start
@@ -410,7 +421,7 @@ export default function AgentProfile() {
                                     text-neutralPrimary
                                 "
                                 >
-                                Sales Maintenance
+                                Maintenance
                                 </h6>
                             </div>
                         </div>
@@ -566,7 +577,7 @@ export default function AgentProfile() {
                         >
                           Loading transactions...
                         </div>
-                      )}
+                      )} 
 
                       {!isTransactionLoading &&
                         transactionHist?.data.length === 0 && (
@@ -726,12 +737,13 @@ export default function AgentProfile() {
                   hidden
                   md:flex
                   w-full
-                  bg-neutralMed
+                  bg-white
                  text-mainPrimary
                   flex-col
                   rounded-xl
                   p-custom-24
                   shadow-xl
+           
                 "
               >
                 <div className="
@@ -739,7 +751,8 @@ export default function AgentProfile() {
                         flex
                         justify-between
                         items-center
-                       
+
+
                       ">
                   <h2
                     className="
@@ -770,7 +783,8 @@ export default function AgentProfile() {
                   </button>
                   
                 </div>
-                <div className="mt-6 flex flex-col gap-y-custom-16">
+                <div className="mt-6 flex flex-col gap-y-custom-16        max-h-200
+                  overflow-y-scroll pr-custom-16">
 
                 {notifications.length === 0 ? (
 
@@ -803,9 +817,10 @@ export default function AgentProfile() {
                           border
                           transition
                           text-sm
+                          shadow-md
                           ${
                             notification.isRead
-                              ? "border-neutralMed bg-white"
+                              ? "border-neutralMed bg-neutralLight"
                               : "border-lightPrimary bg-white/50 cursor-pointer"
                           }
                         `}

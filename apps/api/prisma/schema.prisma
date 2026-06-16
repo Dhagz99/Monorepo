@@ -127,6 +127,19 @@ enum MaintenanceStatus {
   EXPIRED
 }
 
+enum ReactivationRequestStatus {
+  PENDING
+  PROBATION
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ReactivationType {
+  SELF_REACTIVATION
+  ADMIN_APPROVAL
+}
+
 enum NotificationType {
   MAINTENANCE_APPROVED
   MAINTENANCE_CREATED
@@ -135,6 +148,9 @@ enum NotificationType {
   MAINTENANCE_DROPPED
   MAINTENANCE_SUSPENDED
   MAINTENANCE_COMPLETED
+  MAINTENANCE_REACTIVATE
+  MAINTENANCE_PROBATION
+  
 }
 
 model Company {
@@ -243,6 +259,8 @@ model Agent {
 
   maintenanceCycles  AgentMaintenanceCycle[]
 
+  reactivationRequests AgentReactivationRequest[]
+
   notifications      AgentNotification[]
 
   createdAt          DateTime @default(now())
@@ -314,6 +332,46 @@ model AgentMaintenanceCycle {
   @@index([status, cycleEndDate])
 
   @@map("agent_maintenance_cycles")
+}
+
+
+model AgentReactivationRequest {
+  id        String @id @default(uuid())
+
+  agentId  String
+  agent    Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  requestType ReactivationType
+
+  status ReactivationRequestStatus @default(PENDING)
+
+  requiredSales  Int     @default(1)
+  completedSales Int     @default(0)
+  isCompleted    Boolean @default(false)
+
+  requestedAt DateTime @default(now())
+  approvedAt  DateTime?
+
+  probationStartedAt DateTime?
+  probationEndsAt    DateTime?
+
+  completedAt DateTime?
+  failedAt    DateTime?
+
+  cooldownUntil DateTime?
+
+  reason  String?
+  remarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([agentId, status])
+  @@index([agentId, createdAt])
+  @@index([agentId, cooldownUntil])
+
+  @@map("agent_reactivation_requests")
 }
 
 

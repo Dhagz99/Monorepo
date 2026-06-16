@@ -12,6 +12,7 @@ export * from "./types/clients.types";
 export * from "./types/agents.types";
 export * from "./types/general.types";
 export * from "./types/commission.types";
+export * from "./types/reactivation.types";
 
 
 

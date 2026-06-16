@@ -139,10 +139,11 @@ export async function processMaintenanceCycles() {
                   },
                 });
 
-              await createNextCycle(
-                tx,
-                cycle
-              );
+              // no next cycle create for now wait for confirmation.
+              // await createNextCycle(
+              //   tx,
+              //   cycle
+              // );
 
               return notification;
             }
