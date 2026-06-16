@@ -1,8 +1,10 @@
+import {   NotificationType, ReactivationRequestStatus } from "../../generated/prisma";
 import prisma from "../lib/prisma";
 
 import {
   emitNotification,
 } from "../socket/socketEmitter";
+
 
 export async function processMaintenanceWarnings() {
 
@@ -172,6 +174,207 @@ export async function processMaintenanceWarnings() {
 
       console.error(
         `Failed warning for cycle ${cycle.id}`,
+        error
+      );
+    }
+  }
+}
+
+export async function processProbationRequests() {
+
+  const now = new Date();
+
+  const currentMonth =
+    now.getMonth() + 1;
+
+  const currentYear =
+    now.getFullYear();
+
+  const currentDay =
+    now.getDate();
+
+  const isGracePeriod =
+    currentDay > 12;
+
+  const cycleStartDate =
+    new Date(
+      currentYear,
+      currentMonth - 1,
+      1
+    );
+
+  const cycleEndDate =
+    new Date(
+      currentYear,
+      currentMonth,
+      0,
+      23,
+      59,
+      59
+    );
+
+  const probationRequests =
+    await prisma.agentReactivationRequest.findMany({
+      where: {
+        status:
+          ReactivationRequestStatus.PROBATION,
+
+        probationEndsAt: {
+          lte: now,
+        },
+      },
+    });
+
+  for (const request of probationRequests) {
+
+    try {
+
+      const completed =
+        request.completedSales >=
+        request.requiredSales;
+
+      const notification =
+        await prisma.$transaction(
+          async (tx) => {
+
+            if (completed) {
+
+              await tx.agentReactivationRequest.update({
+                where: {
+                  id: request.id,
+                },
+
+                data: {
+                  status:
+                    ReactivationRequestStatus.COMPLETED,
+
+                  completedAt:
+                    now,
+
+                  isCompleted:
+                    true,
+                },
+              });
+
+              await tx.agent.update({
+                where: {
+                  id: request.agentId,
+                },
+
+                data: {
+                  status: "ACTIVE",
+                },
+              });
+
+              await tx.agentMaintenanceCycle.create({
+                data: {
+                  agentId:
+                    request.agentId,
+
+                  cycleMonth:
+                    currentMonth,
+
+                  cycleYear:
+                    currentYear,
+
+                  cycleStartDate,
+
+                  cycleEndDate,
+
+                  requiredSales:
+                    isGracePeriod
+                      ? 0
+                      : 1,
+
+                  completedSales: 0,
+
+                  remainingSales:
+                    isGracePeriod
+                      ? 0
+                      : 1,
+
+                  isCompleted:
+                    isGracePeriod,
+
+                  isFirstCycle:
+                    true,
+
+                  status:
+                    isGracePeriod
+                      ? "GRACE"
+                      : "ACTIVE",
+                },
+              });
+
+
+
+              return tx.agentNotification.create({
+                data: {
+                  agentId:
+                    request.agentId,
+
+                  type:
+                    NotificationType.MAINTENANCE_REACTIVATE,
+
+                  title:
+                    "PROBATION COMPLETED",
+
+                  message:
+                    "You have successfully completed your probation period and your account has been reactivated.",
+                },
+              });
+            }
+
+            const cooldownUntil =
+              new Date(now);
+
+            cooldownUntil.setDate(
+              cooldownUntil.getDate() + 30
+            );
+
+            await tx.agentReactivationRequest.update({
+              where: {
+                id: request.id,
+              },
+
+              data: {
+                status:
+                  ReactivationRequestStatus.FAILED,
+
+                failedAt:
+                  now,
+
+                cooldownUntil,
+              },
+            });
+
+            return tx.agentNotification.create({
+              data: {
+                agentId:
+                  request.agentId,
+
+                type:
+                  NotificationType.MAINTENANCE_PROBATION,
+
+                title:
+                  "PROBATION FAILED",
+
+                message:
+                  "Your probation period has ended and the required sales target was not completed. You may submit another reactivation request after 30 days.",
+              },
+            });
+          }
+        );
+
+      emitNotification(
+        request.agentId,
+        notification
+      );
+
+    } catch (error) {
+
+      console.error(
+        `Failed probation processing for request ${request.id}`,
         error
       );
     }

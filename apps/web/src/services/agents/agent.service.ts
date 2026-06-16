@@ -9,6 +9,8 @@ import {
   GetMasterlistResponse,
   GetPendingAgentParams,
   GetPendingAgentResponse,
+  GetRemainingSalesParams,
+  GetRemainingSalesResponse,
   GetTransactionHistResponse,
   GetTransactionParams,
   GetTransactionResponse,
@@ -225,6 +227,19 @@ export const updateAgentAccountService =
     const res = await api.patch(
       "/agents/update-account",
       payload
+    );
+
+    return res.data;
+  };
+
+
+export const getRemainingSalesService =
+  async (
+    params: GetRemainingSalesParams
+  ): Promise<GetRemainingSalesResponse> => {
+
+    const res = await api.get(
+      `/agents/remaining-sales/${params.agentId}`
     );
 
     return res.data;

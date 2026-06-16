@@ -17,6 +17,7 @@ import {
   readAllNotif,
   droppedOrSuspendedAgentService,
   updateAgentAccountService,
+  getAgentRemainingSales,
 } from "./agents.service";
 
 import {
@@ -621,6 +622,36 @@ export const readAllNotifController = async (
       return res.status(500).json({
         message:
           "Failed to update account",
+      });
+    }
+  };
+
+
+export const getRemainingSalesController =
+  async (
+    req: Request,
+    res: Response
+  ) => {
+
+    try {
+
+      const { agentId } =
+        req.params;
+
+      const result =
+        await getAgentRemainingSales(
+          agentId
+        );
+
+      return res.status(200).json(
+        result
+      );
+
+    } catch (error) {
+
+      return res.status(500).json({
+        message:
+          "Failed to get remaining sales",
       });
     }
   };

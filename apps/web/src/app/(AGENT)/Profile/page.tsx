@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/context/UserContext";
-import { useAgentDetails,useAgentTransactionsHist, useMarkNotificationsRead } from "@/hooks/agents/useAgent";
+import { useAgentDetails,useAgentTransactionsHist, useMarkNotificationsRead, useRemainingSales } from "@/hooks/agents/useAgent";
 import { AgentNotification } from "@repo/shared";
 import { Bell, X } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -11,6 +11,9 @@ import { useEffect } from "react";
 import MainModal from "@/components/modal/mainModal";
 import SweetAlert from "@/components/modal/Swal";
 import Swal from "sweetalert2";
+import { useQueryClient } from "@tanstack/react-query";
+
+
 
 
 export default function AgentProfile() {
@@ -19,12 +22,16 @@ export default function AgentProfile() {
 
     const {data: agent, isLoading} = useAgentDetails({agentId:user?.agent?.id as string});
 
+    const {data: salesInfo} = useRemainingSales({agentId:user?.agent?.id ?? "",});
 
     const {mutateAsync: markRead,} = useMarkNotificationsRead();
 
     const [openTransact, setOpenTransact] = useState(false);
 
     const [showQr, setShowQr] = useState(false);
+
+    const queryClient =
+      useQueryClient();
 
     const [
       realtimeNotifications,
@@ -46,11 +53,11 @@ export default function AgentProfile() {
 
       }, [agent?.id]);
 
-    useEffect(() => {
 
-      socket.on(
-        "new-notification",
-        (
+
+      useEffect(() => {
+
+        const handleNotification = (
           notification: AgentNotification
         ) => {
 
@@ -60,39 +67,74 @@ export default function AgentProfile() {
               ...prev,
             ]
           );
-        }
-      );
 
-      return () => {
+          const shouldRefreshSales = [
+            "MAINTENANCE_WARNING",
+            "MAINTENANCE_REACTIVATE",
+            "MAINTENANCE_PROBATION",
+            "MAINTENANCE_CREATED",
+            "MAINTENANCE_APPROVED",
+          ].includes(notification.type);
 
-        socket.off(
-          "new-notification"
+          if (!shouldRefreshSales) {
+            return;
+          }
+
+          queryClient.invalidateQueries({
+            queryKey: [
+              "remaining-sales",
+              agent?.id,
+            ],
+          });
+
+          queryClient.invalidateQueries({
+            queryKey: [
+              "agent-details",
+              agent?.id,
+            ],
+          });
+
+        };
+
+        socket.on(
+          "new-notification",
+          handleNotification
         );
-      };
 
-    }, []);
+        return () => {
 
-
-    useEffect(() => {
-      socket.on(
-        "new-notification",
-        (notification: AgentNotification) => {
-          setRealtimeNotifications(
-            (prev) => [
-              notification,
-              ...prev,
-            ]
+          socket.off(
+            "new-notification",
+            handleNotification
           );
+        };
 
-        }
-      );
+      }, [
+        queryClient,
+        agent?.id,
+      ]);
 
-      return () => {
-        socket.off(
-          "new-notification"
-        );
-      };
-    }, []);
+
+    // useEffect(() => {
+    //   socket.on(
+    //     "new-notification",
+    //     (notification: AgentNotification) => {
+    //       setRealtimeNotifications(
+    //         (prev) => [
+    //           notification,
+    //           ...prev,
+    //         ]
+    //       );
+
+    //     }
+    //   );
+
+    //   return () => {
+    //     socket.off(
+    //       "new-notification"
+    //     );
+    //   };
+    // }, []);
 
     const [selectedMonth, setSelectedMonth] =
       useState("");
@@ -337,9 +379,9 @@ export default function AgentProfile() {
                                   w-full px-custom-16 
                                   text-white text-body 
                                   py-1 
-                                  ${user?.agent?.status === "ACTIVE" ? "bg-positive":user?.agent?.status === "EXPIRED" ? "bg-negative" : "bg-secondary"}
+                                  ${agent?.status === "ACTIVE" ? "bg-positive":agent?.status === "EXPIRED" ? "bg-negative" : "bg-secondary"}
                                   
-                                  rounded-lg text-center`}>{user?.agent?.status}</div>
+                                  rounded-lg text-center`}>{agent?.status}</div>
                             </div>
             
                         <div className="flex flex-col gap-y-custom-8 relative z-10 w-full ">
@@ -412,7 +454,7 @@ export default function AgentProfile() {
             
                                 "
                                 >
-                                (1)
+                                ( {salesInfo?.remainingSales} )
                                 </strong>
                                 <h6
                                 className="
@@ -421,7 +463,7 @@ export default function AgentProfile() {
                                     text-neutralPrimary
                                 "
                                 >
-                                Maintenance
+                                Remaining Sale
                                 </h6>
                             </div>
                         </div>

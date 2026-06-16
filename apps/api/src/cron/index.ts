@@ -19,26 +19,56 @@
 
 // cron/index.ts
 
-import { maintenanceResetCron } from "./maintenanceReset.cron";
-import { maintenanceWarningCron } from "./maintenanceWarning.cron";
+import { maintenanceResetCron }
+  from "./maintenanceReset.cron";
 
-import { processMaintenanceCycles }
-  from "./maintenance.processor";
-import { processMaintenanceWarnings } from "./maintenanceWarning.processor";
+import { maintenanceWarningCron }
+  from "./maintenanceWarning.cron";
+
+import { maintenanceReactivationCron }
+  from "./maintenance.Reactivation";
+
+import {
+  processMaintenanceCycles
+} from "./maintenance.processor";
+
+import {
+  processMaintenanceWarnings
+} from "./maintenanceWarning.processor";
+
+import {
+  processProbationRequests
+} from "./maintenanceWarning.processor";
 
 export const initializeCrons =
   async () => {
 
-    // Recover missed maintenance cycles
-    await processMaintenanceCycles();
+    try {
 
-    await processMaintenanceWarnings();
+      // Recover missed maintenance cycles
+      await processMaintenanceCycles();
 
-    maintenanceResetCron.start();
+      // Recover missed warning notifications
+      await processMaintenanceWarnings();
 
-    maintenanceWarningCron.start();
+      // // Recover missed probation processing
+      // await processProbationRequests();
 
-    console.log(
-      "Cron jobs initialized."
-    );
+      maintenanceResetCron.start();
+
+      maintenanceWarningCron.start();
+
+      maintenanceReactivationCron.start();
+
+      console.log(
+        "Cron jobs initialized."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Cron initialization failed:",
+        error
+      );
+    }
   };

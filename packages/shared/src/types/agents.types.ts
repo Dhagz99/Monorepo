@@ -559,3 +559,13 @@ export interface DirectCommissionParams {
     term:number;
     piraRate:number;
 }
+
+
+export interface GetRemainingSalesParams {
+  agentId: string;
+}
+
+export interface GetRemainingSalesResponse {
+  status: string;
+  remainingSales: number;
+}

@@ -109,6 +109,7 @@ export interface CommissionDetailsResponse {
     clientName: string;
     loanAmount: number;
     clientStatus: string;
+    term:number;
   };
 
   branch: {

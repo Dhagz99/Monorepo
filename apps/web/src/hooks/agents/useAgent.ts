@@ -8,6 +8,7 @@ import {
   getAgentTransactionsService,
   getMasterlistService,
   getPendingAgentService,
+  getRemainingSalesService,
   readAllNotifService,
   registerAgentService,
   searchAgentsService,
@@ -21,6 +22,7 @@ import {
   GetAgentDetailsParams,
   GetMasterlistParams,
   GetPendingAgentParams,
+  GetRemainingSalesParams,
   GetTransactionParams,
   RegisterAgentSchema,
   SearchAgentsParams,
@@ -318,3 +320,25 @@ export const useUpdateAgentAccount =
       },
     });
   };
+
+
+export const useRemainingSales = (
+  params: GetRemainingSalesParams
+) => {
+
+  return useQuery({
+
+    queryKey: [
+      "remaining-sales",
+      params.agentId,
+    ],
+
+    queryFn: () =>
+      getRemainingSalesService(
+        params
+      ),
+
+    enabled:
+      !!params.agentId,
+  });
+};

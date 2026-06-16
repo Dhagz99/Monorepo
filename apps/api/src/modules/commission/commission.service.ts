@@ -383,6 +383,8 @@ export const createCommissionScan = async ({
       }
 
 
+    if (scanData.agent.status === "ACTIVE") {
+
       const activeCycle =
         await tx.agentMaintenanceCycle.findFirst({
           where: {
@@ -416,9 +418,60 @@ export const createCommissionScan = async ({
 
           remainingSales:
             newRequiredSales,
+
+          isCompleted:
+            newRequiredSales === 0,
         },
       });
 
+    }
+    else if (
+      scanData.agent.status === "EXPIRED"
+    ) {
+      const now = new Date();
+      const probationRequest =
+        await tx.agentReactivationRequest.findFirst({
+          where: {
+            agentId:
+              scanData.agent.id,
+
+            status:
+              "PROBATION",
+            probationEndsAt: {
+              lte: now,
+            },
+          },
+
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+      if (!probationRequest) {
+        throw new Error(
+          "No active probation request found"
+        );
+      }
+
+      const completedSales =
+        probationRequest.completedSales + 1;
+
+      const isCompleted =
+        completedSales >=
+        probationRequest.requiredSales;
+
+      await tx.agentReactivationRequest.update({
+        where: {
+          id: probationRequest.id,
+        },
+
+        data: {
+          completedSales,
+
+          isCompleted,
+        },
+      });
+    }
 
       await tx.dailyClientDetails.update({
         where: {

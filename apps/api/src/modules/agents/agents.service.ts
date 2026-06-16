@@ -8,7 +8,8 @@ import {
   CheckUniqueInfoParams,
   CheckUniqueInfoResponse,
   TransactionHistParams,
-  UpdateAgentAccSchema
+  UpdateAgentAccSchema,
+  GetRemainingSalesResponse,
 } from "@repo/shared";
 
 import {
@@ -563,7 +564,7 @@ export const registerAgent = async (
     now.getDate();
 
   const isGracePeriod =
-    currentDay > 10;
+    currentDay > 12;
 
   const cycleStartDate =
     new Date(
@@ -1387,4 +1388,88 @@ export const updateAgentAccountService =
       }
     );
   };
+
+
+export const getAgentRemainingSales = async (
+  agentId: string
+): Promise<GetRemainingSalesResponse> => {
+
+  const agent =
+    await prisma.agent.findUnique({
+      where: {
+        id: agentId,
+      },
+
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+  if (!agent) {
+    throw new Error(
+      "Agent not found"
+    );
+  }
+
+  if (agent.status === "ACTIVE") {
+
+    const activeCycle =
+      await prisma.agentMaintenanceCycle.findFirst({
+        where: {
+          agentId: agent.id,
+          status: "ACTIVE",
+        },
+
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    return {
+      status: agent.status,
+      remainingSales:
+        activeCycle?.remainingSales ?? 0,
+    };
+  }
+
+  if (agent.status === "EXPIRED") {
+
+    const probationRequest =
+      await prisma.agentReactivationRequest.findFirst({
+        where: {
+          agentId: agent.id,
+
+          status: "PROBATION",
+        },
+
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    if (!probationRequest) {
+      return {
+        status: agent.status,
+        remainingSales: 0,
+      };
+    }
+
+    return {
+      status: agent.status,
+
+      remainingSales:
+        Math.max(
+          probationRequest.requiredSales -
+          probationRequest.completedSales,
+          0
+        ),
+    };
+  }
+
+  return {
+    status: agent.status,
+    remainingSales: 0,
+  };
+};
 

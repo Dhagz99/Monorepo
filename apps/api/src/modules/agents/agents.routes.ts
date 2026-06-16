@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken } from "../auth/auth.middleware";
-import { searchAgentsController, getMasterlistController, searchBranchController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController} from "./agents.controller";
+import { searchAgentsController, getMasterlistController, searchBranchController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController, getRemainingSalesController} from "./agents.controller";
 
 
 const router = Router();
@@ -10,6 +10,7 @@ router.get("/searchBranch", searchBranchController);
 router.get("/details/:agentId", getAgentDetailsController);
 router.get("/details/:agentId/transactions", getAgentTransactionsController);
 router.get("/transactions/:agentId/history", getAgentTransactionsHistController);
+router.get("/remaining-sales/:agentId",getRemainingSalesController);
 
 router.post("/registerAgent", registerAgentController);
 router.post("/getPendingAgent", getAllPendingAgentController);

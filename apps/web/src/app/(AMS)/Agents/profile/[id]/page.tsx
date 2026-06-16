@@ -318,7 +318,8 @@ export default function AgentDetailsPage() {
           flex-col
           gap-y-custom-32
           px-custom-32
-          py-custom-64
+          pt-custom-64
+          pb-custom-32
         "
       >
       
@@ -838,7 +839,7 @@ export default function AgentDetailsPage() {
             >
               Notifications
             </h2>
-            <div className="mt-6 flex flex-col gap-y-custom-16">
+            <div className="mt-6 flex flex-col gap-y-custom-16 overflow-y-auto max-h-146">
 
                 {notifications.length === 0 ? (
 
