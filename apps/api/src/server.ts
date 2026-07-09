@@ -98,7 +98,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import http from "http";
-
+import path from "path";
 import routes from "./routes/urls";
 
 import { initializeCrons } from "./cron";
@@ -180,6 +180,19 @@ app.use(
   express.urlencoded({
     extended: true,
   })
+);
+
+/* =========================
+   STATIC FILES
+========================= */
+app.use(
+  "/uploads",
+  express.static(
+    path.join(
+      process.cwd(),
+      "uploads"
+    )
+  )
 );
 
 /* =========================

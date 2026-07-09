@@ -1,23 +1,3 @@
-// // cron/index.ts
-
-// import { maintenanceResetCron } from "./maintenanceReset.cron";
-// import { maintenanceWarningCron } from "./maintenanceWarning.cron";
-
-// export const initializeCrons =
-//   () => {
-
-//     maintenanceResetCron.start();
-
-//     maintenanceWarningCron.start();
-
-//     console.log(
-//       "Cron jobs initialized."
-//     );
-//   };/
-
-
-
-// cron/index.ts
 
 import { maintenanceResetCron }
   from "./maintenanceReset.cron";
@@ -51,8 +31,8 @@ export const initializeCrons =
       // Recover missed warning notifications
       await processMaintenanceWarnings();
 
-      // // Recover missed probation processing
-      // await processProbationRequests();
+      // Recover missed probation processing
+      await processProbationRequests();
 
       maintenanceResetCron.start();
 

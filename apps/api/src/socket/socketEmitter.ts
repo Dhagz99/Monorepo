@@ -1,20 +1,9 @@
 // src/socket/socketEmitter.ts
 
+import { AdminReactivationPaymentSocketPayload, AdminReactivationWithdrawSocketPayload, NotificationPayload, ReactivationApprovalSocketPayload } from "@repo/shared";
 import { getIO } from "./index";
 
-interface NotificationPayload {
-  id?: string;
 
-  title: string;
-
-  message: string;
-
-  type: string;
-
-  isRead?: boolean;
-
-  createdAt: Date;
-}
 
 export const emitNotification = (
   agentId: string,
@@ -28,3 +17,52 @@ export const emitNotification = (
     notification
   );
 };
+
+
+
+
+export const emitAdminReactivationApproval = (
+  payload: ReactivationApprovalSocketPayload
+) => {
+  const io = getIO();
+
+  io.to("admin:reactivation").emit(
+    "new-reactivation-approval",
+    payload
+  );
+};
+
+export const emitUplineReactivationApproval = (
+  reviewerAgentId: string,
+  payload: ReactivationApprovalSocketPayload
+) => {
+  const io = getIO();
+
+  io.to(`agent:${reviewerAgentId}`).emit(
+    "new-reactivation-approval",
+    payload
+  );
+};
+
+
+export const emitAdminPaymentUpdated = (
+  payload: AdminReactivationPaymentSocketPayload
+) => {
+  const io = getIO();
+
+  io.to("admin:payments").emit(
+    "admin-payment-updated",
+    payload
+  );
+};
+
+export const emitAdminWithdrawUpdated = (
+  payload: AdminReactivationWithdrawSocketPayload
+) => {
+  const io = getIO();
+
+  io.to("admin:withdraw").emit(
+    "admin-withdraw-updated",
+    payload
+  )
+}

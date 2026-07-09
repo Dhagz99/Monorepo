@@ -1,39 +1,37 @@
-// src/socket/socketEvents.ts
-
 import { Server } from "socket.io";
 
-export const registerSocketEvents = (
-  io: Server
-) => {
-
+export const registerSocketEvents = (io: Server) => {
   io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
 
-    console.log(
-      "Client connected:",
-      socket.id
-    );
+    socket.on("join-agent-room", (agentId: string) => {
+      socket.join(agentId);
+      console.log(`Agent joined notification room: ${agentId}`);
+    });
 
-    /* =========================
-       JOIN AGENT ROOM
-    ========================= */
-    socket.on(
-      "join-agent-room",
-      (agentId: string) => {
+    socket.on("join-upline-reactivation-room", (agentId: string) => {
+      socket.join(`agent:${agentId}`);
+      console.log(`Upline joined reactivation room: agent:${agentId}`);
+    });
 
-        socket.join(agentId);
+    socket.on("join-admin-reactivation-room", () => {
+      socket.join("admin:reactivation");
+      console.log("Admin joined room: admin:reactivation");
+    });
 
-        console.log(
-          `Agent joined room: ${agentId}`
-        );
-      }
-    );
+    socket.on("join-admin-payment-room", () => {
+      socket.join("admin:payments");
+      console.log("Admin joined room: admin:payments");
+    });
+
+    socket.on("join-admin-withdraw-room", () => {
+      socket.join("admin:withdraw");
+      console.log("Admin joined room: admin:withdraw");
+    });
 
     socket.on("disconnect", () => {
-
-      console.log(
-        "Client disconnected:",
-        socket.id
-      );
+      console.log("Client disconnected:", socket.id);
     });
+
   });
 };

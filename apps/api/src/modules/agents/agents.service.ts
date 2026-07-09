@@ -20,6 +20,10 @@ import bcrypt from "bcryptjs";
 import { AgentLevel, AgentStatus,NotificationType } from "../../../generated/prisma";
 import { sendAgentApprovalEmail } from "./utils/email.service";
 
+import {
+  emitAdminReactivationApproval,
+  emitUplineReactivationApproval,
+} from "../../socket/socketEmitter";
 
 
 // export const searchAgents = async (
@@ -695,7 +699,7 @@ export const registerAgent = async (
             agent.id,
 
           type:
-            NotificationType.MAINTENANCE_CREATED,
+            NotificationType.AGENT_REGISTRATION,
 
           title:
             "NEW AGENT",
@@ -787,42 +791,119 @@ export const agentTransactions = async ({
 };
 
 
+// export const agentTransactionsHist = async ({
+//   agentId,
+//   limit = 5,
+//   month,
+//   year,
+// }: TransactionHistParams) => {
+
+//   const whereCondition: any = {
+//     receiverAgentId: agentId,
+//   };
+
+//   if (month && year) {
+
+//     const startDate =
+//       new Date(year, month - 1, 1);
+
+//     const endDate =
+//       new Date(year, month, 1);
+
+//     whereCondition.createdAt = {
+//       gte: startDate,
+//       lt: endDate,
+//     };
+//   }
+
+//   const [data, total] =
+//     await Promise.all([
+//       prisma.commissionTransaction.findMany({
+//         where: whereCondition,
+
+//         take: limit,
+
+//         orderBy: {
+//           createdAt: "desc",
+//         },
+
+//         include: {
+//           sourceAgent: {
+//             select: {
+//               id: true,
+//               fullName: true,
+//               level: true,
+//               agentCode: true,
+//             },
+//           },
+
+//           receiverAgent: {
+//             select: {
+//               id: true,
+//               fullName: true,
+//               level: true,
+//               agentCode: true,
+//             },
+//           },
+
+//           commissionRule: true,
+//         },
+//       }),
+
+//       prisma.commissionTransaction.count({
+//         where: whereCondition,
+//       }),
+//     ]);
+
+//   return {
+//     data,
+//     total,
+//     limit,
+//     totalPages:
+//       Math.ceil(total / limit),
+//   };
+// };
+
 export const agentTransactionsHist = async ({
   agentId,
-  limit = 5,
+  limit = 2,
   month,
   year,
 }: TransactionHistParams) => {
-
-  const whereCondition: any = {
-    receiverAgentId: agentId,
-  };
+  const dateFilter: any = {};
 
   if (month && year) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
 
-    const startDate =
-      new Date(year, month - 1, 1);
-
-    const endDate =
-      new Date(year, month, 1);
-
-    whereCondition.createdAt = {
+    dateFilter.createdAt = {
       gte: startDate,
       lt: endDate,
     };
   }
 
-  const [data, total] =
+  const withdrawalDateFilter: any = {};
+
+  if (month && year) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
+
+    withdrawalDateFilter.createdAt = {
+      gte: startDate,
+      lt: endDate,
+    };
+  }
+
+  const [commissions, withdrawals] =
     await Promise.all([
       prisma.commissionTransaction.findMany({
-        where: whereCondition,
-
-        take: limit,
-
+        where: {
+          receiverAgentId: agentId,
+          ...dateFilter,
+        },
         orderBy: {
           createdAt: "desc",
         },
-
         include: {
           sourceAgent: {
             select: {
@@ -832,7 +913,6 @@ export const agentTransactionsHist = async ({
               agentCode: true,
             },
           },
-
           receiverAgent: {
             select: {
               id: true,
@@ -841,22 +921,71 @@ export const agentTransactionsHist = async ({
               agentCode: true,
             },
           },
-
           commissionRule: true,
         },
       }),
 
-      prisma.commissionTransaction.count({
-        where: whereCondition,
+      prisma.creditWithdrawalRequest.findMany({
+        where: {
+          agentId,
+          ...withdrawalDateFilter,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
       }),
     ]);
 
+  const commissionItems = commissions.map((item) => ({
+    id: item.id,
+    type: "COMMISSION" as const,
+    transactionType: item.commissionType,
+    amount: Number(item.commissionAmount),
+    status: "COMPLETED",
+    remarks: item.remarks,
+    createdAt: item.createdAt,
+
+    sourceAgent: item.sourceAgent,
+    receiverAgent: item.receiverAgent,
+
+    raw: item,
+  }));
+
+  const withdrawalItems = withdrawals.map((item) => ({
+    id: item.id,
+    type: "WITHDRAWAL" as const,
+    transactionType: "GCASH_WITHDRAWAL",
+    amount: Number(item.amount),
+    status: item.status,
+    remarks: item.remarks,
+    createdAt: item.createdAt,
+
+    sourceAgent: null,
+    receiverAgent: null,
+
+    accountName: item.accountName,
+    accountNumber: item.accountNumber,
+    payoutChannel: item.payoutChannel,
+
+    raw: item,
+  }));
+
+  const merged = [
+    ...commissionItems,
+    ...withdrawalItems,
+  ].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() -
+      new Date(a.createdAt).getTime()
+  );
+
+  const data = merged.slice(0, limit);
+
   return {
     data,
-    total,
+    total: merged.length,
     limit,
-    totalPages:
-      Math.ceil(total / limit),
+    totalPages: Math.ceil(merged.length / limit),
   };
 };
 
@@ -865,6 +994,7 @@ export const agentMasterlist = async ({
   limit = 10,
   search,
   status,
+  branchCode,
 }: GetMasterlistParams) => {
   const skip = (page - 1) * limit;
 
@@ -887,6 +1017,17 @@ export const agentMasterlist = async ({
         contains: search.trim(),
         mode: "insensitive" as const,
       },
+    }),
+
+    ...(branchCode && {
+          branches: {
+        some: {
+          isActive: true,
+          branch: {
+            branchCode,
+          },
+        },
+      }
     }),
   };
 
@@ -1023,7 +1164,9 @@ export const updateAgentRegistration = async (
           await tx.agentNotification.create({
             data: {
               agentId: agent.id,
-              type: NotificationType.MAINTENANCE_APPROVED,
+              type: existingUser
+                    ? NotificationType.REACTIVATION_REQUEST
+                    : NotificationType.AGENT_REGISTRATION,
               title: "ACCOUNT APPROVED",
               message: existingUser
                 ? "Your account has been reactivated."
@@ -1096,13 +1239,13 @@ export const updateAgentRegistration = async (
               agentId: agent.id,
 
               type:
-                NotificationType.MAINTENANCE_APPROVED,
+                NotificationType.AGENT_REGISTRATION,
 
               title:
                 "ACCOUNT APPROVED",
 
               message:
-                `Your account has been approved. Username: ${agent.username}. Temporary Password: ${temporaryPassword}`,
+                `Your account has been approved. Username: ${agent.username}`,
             },
           });
         }
@@ -1207,6 +1350,9 @@ export const getAgentDetails = async (
             fullName: true,
             level: true,
             status: true,
+          },
+          orderBy: {
+            fullName: "asc",
           },
         },
 
@@ -1433,7 +1579,7 @@ export const getAgentRemainingSales = async (
     };
   }
 
-  if (agent.status === "EXPIRED") {
+  if (agent.status === "PROBATION") {
 
     const probationRequest =
       await prisma.agentReactivationRequest.findFirst({

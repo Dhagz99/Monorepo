@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticateToken } from "../auth/auth.middleware";
 import { searchAgentsController, getMasterlistController, searchBranchController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController, getRemainingSalesController} from "./agents.controller";
+import { uploadReactivationRequest } from "./utils/upload.middleware";
 
 
 const router = Router();
@@ -14,7 +15,7 @@ router.get("/remaining-sales/:agentId",getRemainingSalesController);
 
 router.post("/registerAgent", registerAgentController);
 router.post("/getPendingAgent", getAllPendingAgentController);
-router.post("/getMasterlist", getMasterlistController);
+router.post("/getMasterlist",authenticateToken, getMasterlistController);
 router.post("/checkUniqueInfo",checkUniqueInfoController);
 
 

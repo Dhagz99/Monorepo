@@ -114,3 +114,30 @@ export const getAllUsers = async ({
     totalPages: Math.ceil(total / limit),
   };
 }
+
+export const getRolesService = async () => {
+    return prisma.role.findMany({
+      orderBy:{
+        name:"asc"
+      },
+      select:{
+        id:true,
+        name: true
+      }
+    });
+}
+
+export const getBranchesService = async () => {
+    return prisma.branch.findMany({
+        where: {
+            deletedAt: null,
+        },
+        orderBy: {
+            branchCode: "asc",
+        },
+        select: {
+            branchCode: true,
+            companyName: true,
+        },
+    });
+};

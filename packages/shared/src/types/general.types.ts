@@ -80,3 +80,25 @@ export interface CommissionSettingsResponse {
 
   overrideRules: OverrideCommissionRule[];
 }
+
+export interface RoleOption {
+  id:number;
+  name:string;
+}
+
+export interface GetRolesApiResponse {
+  success: boolean;
+  data: RoleOption[];
+}
+
+export interface BranchOption {
+    id: string;
+    branchName: string;
+    branchCode:string;
+    companyName:string;
+}
+
+export interface GetBranchesResponse {
+    success: boolean;
+    data: BranchOption[];
+}

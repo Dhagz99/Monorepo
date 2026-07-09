@@ -119,9 +119,10 @@ export const useMasterlistAgents = (
       params.search,
       params.status,
     ],
-
-    queryFn: () =>
-      getMasterlistService(params),
+    queryFn: () => getMasterlistService(params),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
   });
 };
 
@@ -342,3 +343,4 @@ export const useRemainingSales = (
       !!params.agentId,
   });
 };
+

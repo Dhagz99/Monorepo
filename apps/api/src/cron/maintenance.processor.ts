@@ -19,7 +19,12 @@ export async function processMaintenanceCycles() {
   const overdueCycles =
     await prisma.agentMaintenanceCycle.findMany({
       where: {
-        status: "ACTIVE",
+       status: {
+          in: [
+            "ACTIVE",
+            "GRACE"
+          ],
+        },
 
         cycleEndDate: {
           lt: now,
@@ -41,64 +46,55 @@ export async function processMaintenanceCycles() {
     try {
 
       const completed =
-        cycle.completedSales >=
-        cycle.requiredSales;
+        cycle.status === "GRACE" ||
+        cycle.completedSales >= cycle.requiredSales;
 
       const notification =
         await prisma.$transaction(
           async (tx) => {
 
-            if (completed) {
+          if (completed) {
 
-              await tx.agentMaintenanceCycle.update({
-                where: {
-                  id: cycle.id,
-                },
-
+             const notification =
+              await tx.agentNotification.create({
                 data: {
-                  status: "COMPLETED",
-
-                  isCompleted: true,
-
-                  completedAt: now,
+                  agentId: cycle.agentId,
+                  type: "MAINTENANCE_COMPLETED",
+                  title:
+                    cycle.status === "GRACE"
+                      ? "Grace Period Completed"
+                      : "Maintenance Completed",
+                  message:
+                    cycle.status === "GRACE"
+                      ? "Your grace period has ended. Your account remains active."
+                      : "You successfully completed your sales maintenance.",
                 },
               });
+            await tx.agentMaintenanceCycle.update({
+              where: {
+                id: cycle.id,
+              },
+              data: {
+                status: "COMPLETED",
+                isCompleted: true,
+                completedAt: now,
+              },
+            });
 
-              await tx.agent.update({
-                where: {
-                  id: cycle.agentId,
-                },
+            await tx.agent.update({
+              where: {
+                id: cycle.agentId,
+              },
+              data: {
+                status: "ACTIVE",
+              },
+            });
 
-                data: {
-                  status: "ACTIVE",
-                },
-              });
+           
+            await createNextCycle(tx, cycle);
 
-              const notification =
-                await tx.agentNotification.create({
-                  data: {
-                    agentId:
-                      cycle.agentId,
-
-                    type:
-                      "MAINTENANCE_COMPLETED",
-
-                    title:
-                      "Maintenance Completed",
-
-                    message:
-                      "You successfully completed your sales maintenance.",
-                  },
-                });
-
-              await createNextCycle(
-                tx,
-                cycle
-              );
-
-              return notification;
-
-            } else {
+            return notification;
+          } else {
 
               await tx.agentMaintenanceCycle.update({
                 where: {

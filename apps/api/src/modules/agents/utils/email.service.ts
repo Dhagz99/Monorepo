@@ -17,7 +17,7 @@ export const sendAgentApprovalEmail = async (
   temporaryPassword: string
 ) => {
   await transporter.sendMail({
-    from: `"JGCMI Software Department" <${process.env.SMTP_USER}>`,
+    from: `"Jamero Group of Companies" <${process.env.SMTP_USER}>`,
     to: email,
     subject: "Agent Account Approved",
 
@@ -70,7 +70,7 @@ export const sendAgentApprovalEmail = async (
 
         <p>
           Regards,<br/>
-          <strong>JGCMI Software Department</strong>
+          <strong>Jamero Group of Companies</strong>
         </p>
 
       </div>

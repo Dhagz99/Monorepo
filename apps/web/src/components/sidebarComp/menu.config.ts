@@ -1,64 +1,74 @@
 import {
-    Cog,
-    UserPlus,
-    BarChart3,
-    FilePlus,
-    User,
+  Cog,
+  UserPlus,
+  BarChart3,
+  FilePlus,
+  User,
+  ClipboardCheck,
+  Repeat,
+  CreditCard,
+} from "lucide-react";
 
-  } from "lucide-react"
-import { MenuSection } from "@repo/shared"
-  
+import { MenuSection } from "@repo/shared";
+
 export const MENU_SECTIONS: MenuSection[] = [
-
-    {
-      title: "General",
-      items: [
-        {
-          label: "Client Operations",
-          path: "/",
-          icon: Cog
-        },
-
-        {
-          label: "Agent Administration",
-          icon: User,
-          children: [
-            {
-              label: "Agent Master List",
-              path: "/Agents",
-              icon: UserPlus,
-
-            },
-            {
-              label: "Agent Registration",
-              path: "/Registration",
-              icon: FilePlus,
-
-            },
-          
-          ]
-        },
-        {
-          label:"Reports & Analytics",
-          path:"/Reports",
-          icon: BarChart3,
-         
-        }
-      ]
-    },
-   
-    // {
-    //   title: "Employees",
-    //   items: [
-    //     {
-    //       label: "Employees List",
-    //       path: "/employee-list",
-    //       icon: User,
-    //       permission: "EMPLOYEE_VIEW"
-    //     },
-     
-    //   ]
-    // },
-   
-  ]
-  
+  {
+    title: "General",
+    items: [
+      {
+        label: "Client Operations",
+        path: "/",
+        icon: Cog,
+        permission: "DASHBOARD_ACCESS",
+      },
+      {
+        label: "Agent Administration",
+        icon: User,
+        permission: "AGENT_VIEW",
+        children: [
+          {
+            label: "Agent Master List",
+            path: "/Agents",
+            icon: UserPlus,
+            permission: "AGENT_VIEW",
+          },
+          {
+            label: "Agent Registration",
+            path: "/Registration",
+            icon: FilePlus,
+            permission: "AGENT_CREATE",
+          },
+        ],
+      },
+      {
+        label: "Reports & Analytics",
+        path: "/Reports",
+        icon: BarChart3,
+        permission: "REPORT_VIEW",
+      },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      {
+        label: "Reactivation Request",
+        path: "/Reactivation",
+        icon: ClipboardCheck,
+        permission: "REACTIVATION_VIEW",
+      },
+      {
+        label: "Agent Reassignment",
+        path: "/Reassignment",
+        icon: Repeat,
+        permission: "REASSIGNMENT_VIEW",
+      },
+      {
+        label: "E-wallet Transaction",
+        path: "/Transaction",
+        icon: CreditCard,
+        permission: "TRANSACTION_VIEW",
+      },
+    ],
+  },
+];

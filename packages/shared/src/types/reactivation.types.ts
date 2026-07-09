@@ -13,7 +13,53 @@ export interface ReactivationCheckResponse {
   agentStatus: string;
   expiredAt?: string | Date;
   daysExpired?: number;
+  remainingProbation?: number;
+  daysProbation?: number;
   remainingDays?: number;
+  cooldownDays?: number;
   phase?: ReactivationPhase;
   message: string;
+}
+
+
+
+export interface ReactivationApprovalProgressItem {
+  id: string;
+  reviewerType: "ADMIN" | "UPLINE_AGENT";
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  approvalOrder: number;
+  isRequired: boolean;
+  assignedAt: string;
+  reviewedAt?: string | null;
+  remarks?: string | null;
+
+  reviewerUser?: {
+    id: number;
+    name: string;
+  } | null;
+
+  reviewerAgent?: {
+    id: string;
+    fullName: string;
+    agentCode: string;
+    level: string;
+  } | null;
+}
+
+export interface ReactivationApprovalProgressResponse {
+  requestId: string;
+  requestStatus: string;
+  requestedAt: string;
+  approvedAt?: string | null;
+  failedAt?: string | null;
+  remarks?: string | null;
+
+  agent: {
+    id: string;
+    fullName: string;
+    agentCode: string;
+    level: string;
+  };
+
+  approvals: ReactivationApprovalProgressItem[];
 }

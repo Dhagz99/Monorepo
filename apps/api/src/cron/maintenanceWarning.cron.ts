@@ -151,7 +151,7 @@
 import cron from "node-cron";
 
 import {
-  processMaintenanceWarnings,
+  processMaintenanceWarnings, processDeactivationWarning
 } from "./maintenanceWarning.processor";
 
 export const maintenanceWarningCron =
@@ -170,5 +170,17 @@ export const maintenanceWarningCron =
           error
         );
       }
+    }
+  );
+
+export const deactivationWarningCron =
+  cron.schedule(
+    "0 0 * * *",
+    async () => {
+      console.log(
+        "Running deactivation warning cron..."
+      );
+
+      await processDeactivationWarning();
     }
   );

@@ -18,5 +18,6 @@ export interface MenuItem {
 export interface MenuSection {
   title: string
   items: MenuItem[]
+  permission?: string
 }
 

@@ -22,6 +22,7 @@ import {
 import { useMemo,useState } from "react";
 import { useSearchAgents, useSearchBranches } from "@/hooks/agents/useAgent";
 import {generateAgentQR, generateUncodedAgentCode} from "../utils/GeneratedAgentQR";
+import { useAuth } from "@/components/context/UserContext";
 
 type REGISTRATION_STEP =
   | "personal-details"
@@ -50,6 +51,11 @@ export default function LevelBranchStep({
   setHighestStep,
   setActiveStep,
 }: Props) {
+    
+    const { user } = useAuth();
+
+    const isBranchAccount =
+    user?.roles?.includes("BRANCH_ACC");
 
     const [uplineType, setUplineType] =
     useState<
@@ -228,12 +234,9 @@ export default function LevelBranchStep({
 
         /* L3 LIMIT */
         if (
-        level === "L3" &&
-        selectedAgent
-            ?.l3DownlineCount >=
-        MAX_L3_DOWNLINE
+        level === "L3" 
         ) {
-        return "Maximum Level 3 downlines reached.";
+        return "Invalid assignment. L3 can only be assigned as a downline of L2";
         }
     }
 

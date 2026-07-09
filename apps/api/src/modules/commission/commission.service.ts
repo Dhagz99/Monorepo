@@ -3,6 +3,8 @@ import prisma from "../../lib/prisma";
 import { calculateDirectCommission } from "./utils/commission.direct";
 import { getAgentUplines } from "./utils/commission.fetchUpline";
 import generateSaleReference from "./utils/commission.saleRef";
+import { CreditLedgerType, CreditSource } from "../../../generated/prisma";
+import { syncAgentCreditScore } from "../../services/creditLedger/creditLedger.service";
 
 export const scannedAgent = async (
   agentCode: string,
@@ -69,7 +71,19 @@ export const scannedAgent = async (
       "Commission rule not found"
     );
   }
+  console.log("Commission Rule Used:", {
+  ruleId: commissionRule.id,
+  agentStatus: commissionRule.agentStatus,
+  accountType: commissionRule.accountType,
+  formulaType: commissionRule.formulaType,
+  sspAmount: Number(commissionRule.sspAmount),
+  piraRate: commissionRule.piraRate,
+});
 
+console.log("Client Used:", {
+  loanAmount: Number(client.loanAmount),
+  term: client.term,
+});
 
 
   const commissionAmount =
@@ -113,6 +127,72 @@ export const scannedAgent = async (
 
 
 
+  // const overrideCommissions = uplines.map((upline) => {
+  //   const rule = overrideRules.find(
+  //     (r) => r.receiverLevel === upline.level
+  //   );
+
+  //   let blocked = false;
+  //   let reason: string | null = null;
+
+
+  //   // L3 EXPIRED -> block all uplines
+  //   if (agent.level === "L3" && agent.status === "EXPIRED") {
+  //     blocked = true;
+  //     reason = "Source agent L3 is expired";
+  //   }
+
+  //   // L2 EXPIRED -> block L1
+  //   else if (
+  //     upline.level === "L1" &&
+  //     uplines.some(
+  //       (u) =>
+  //         u.level === "L2" &&
+  //         u.status === "EXPIRED"
+  //     )
+  //   ) {
+  //     blocked = true;
+  //     reason = "Blocked by expired L2";
+  //   }
+
+  //   // Expired L1 earns nothing
+  //   else if (
+  //     upline.level === "L1" &&
+  //     upline.status === "EXPIRED"
+  //   ) {
+  //     blocked = true;
+  //     reason = "L1 is expired";
+  //   }
+
+  //   return {
+  //     agent: {
+  //       id: upline.id,
+  //       agentCode: upline.agentCode,
+  //       fullName: upline.fullName,
+  //       level: upline.level,
+  //       status: upline.status,
+  //     },
+
+  //     amount: blocked
+  //       ? 0
+  //       : Number(rule?.amount ?? 0),
+
+  //     blocked,
+
+  //     reason,
+
+  //     ruleId: rule?.id ?? null,
+  //   };
+  // });
+  const blockedStatuses = ["EXPIRED", "PROBATION"];
+
+  const isBlockedStatus = (status: string) =>
+    blockedStatuses.includes(status);
+
+  const l2Upline = uplines.find(
+    (u) => u.level === "L2"
+  );
+
   const overrideCommissions = uplines.map((upline) => {
     const rule = overrideRules.find(
       (r) => r.receiverLevel === upline.level
@@ -121,33 +201,43 @@ export const scannedAgent = async (
     let blocked = false;
     let reason: string | null = null;
 
-
-    // L3 EXPIRED -> block all uplines
-    if (agent.level === "L3" && agent.status === "EXPIRED") {
-      blocked = true;
-      reason = "Source agent L3 is expired";
-    }
-
-    // L2 EXPIRED -> block L1
-    else if (
-      upline.level === "L1" &&
-      uplines.some(
-        (u) =>
-          u.level === "L2" &&
-          u.status === "EXPIRED"
-      )
+    // L3 EXPIRED / PROBATION -> block L2 and L1
+    if (
+      agent.level === "L3" &&
+      isBlockedStatus(agent.status)
     ) {
       blocked = true;
-      reason = "Blocked by expired L2";
+      reason = "Blocked because source L3 is expired or probation";
     }
 
-    // Expired L1 earns nothing
+    // L3 ACTIVE, but L2 EXPIRED / PROBATION -> block L2 and L1
     else if (
-      upline.level === "L1" &&
-      upline.status === "EXPIRED"
+      agent.level === "L3" &&
+      l2Upline &&
+      isBlockedStatus(l2Upline.status) &&
+      ["L2", "L1"].includes(upline.level)
     ) {
       blocked = true;
-      reason = "L1 is expired";
+      reason = "Blocked because L2 is expired or probation";
+    }
+
+    // L2 makes sale and L2 is EXPIRED / PROBATION -> block L1
+    else if (
+      agent.level === "L2" &&
+      isBlockedStatus(agent.status) &&
+      upline.level === "L1"
+    ) {
+      blocked = true;
+      reason = "Blocked because source L2 is expired or probation";
+    }
+
+    // L1 itself is EXPIRED / PROBATION -> L1 earns nothing
+    else if (
+      upline.level === "L1" &&
+      isBlockedStatus(upline.status)
+    ) {
+      blocked = true;
+      reason = "L1 is expired or probation";
     }
 
     return {
@@ -170,7 +260,7 @@ export const scannedAgent = async (
       ruleId: rule?.id ?? null,
     };
   });
-
+  console.log(commissionAmount)
 
   return {
     agent,
@@ -294,7 +384,16 @@ export const createCommissionScan = async ({
         scanData.directCommission.amount
       );
 
-
+      await tx.agentWithdrawalLedger.create({
+        data: {
+          agentId: scanData.agent.id,
+          type: CreditLedgerType.CREDIT,
+          amount: scanData.directCommission.amount,
+          sourceType: CreditSource.COMMISSION,
+          sourceId: commissionScan.id,
+          description: "Direct commission earned",
+        },
+      });
 
       console.log(
         JSON.stringify(
@@ -346,10 +445,23 @@ export const createCommissionScan = async ({
           },
         });
 
+       
+
         // blocked commissions don't earn score
         if (override.blocked) {
           continue;
         }
+
+          await tx.agentWithdrawalLedger.create({
+            data: {
+              agentId: override.agent.id,
+              type: CreditLedgerType.CREDIT,
+              amount: override.amount,
+              sourceType: CreditSource.COMMISSION,
+              sourceId: commissionScan.id,
+              description: "Override commission earned",
+            },
+          });
 
         const currentScore =
           creditUpdates.get(
@@ -364,22 +476,11 @@ export const createCommissionScan = async ({
       }
 
 
-      for (const [
-        receiverAgentId,
-        score,
-      ] of creditUpdates.entries()) {
-
-        await tx.agent.update({
-          where: {
-            id: receiverAgentId,
-          },
-          data: {
-            creditScore: {
-              increment:
-                Math.floor(score),
-            },
-          },
-        });
+      for (const receiverAgentId of creditUpdates.keys()) {
+        await syncAgentCreditScore(
+          tx,
+          receiverAgentId
+        );
       }
 
 
@@ -426,7 +527,7 @@ export const createCommissionScan = async ({
 
     }
     else if (
-      scanData.agent.status === "EXPIRED"
+      scanData.agent.status === "PROBATION"
     ) {
       const now = new Date();
       const probationRequest =
@@ -438,7 +539,7 @@ export const createCommissionScan = async ({
             status:
               "PROBATION",
             probationEndsAt: {
-              lte: now,
+              gte: now,
             },
           },
 
@@ -490,21 +591,7 @@ export const createCommissionScan = async ({
   );
 };
 
-// export const updateOverrideRuleService = async (
-//   data:UpdateOverrideRules
-// ) => {
-//   const rule = 
-//   await prisma.overrideCommissionRule.update({
-//     where:{
-//       id:data.id,
-//     },
-//     data:{
-//         receiverLevel: data.receiverLevel,
-//         sourceLevel: data.sourceLevel,
 
-//     }
-//   })
-// }
 
 export const updateCommissionRuleService = async (
   data: UpdateCommissionRules

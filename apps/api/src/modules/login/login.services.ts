@@ -91,6 +91,7 @@ if (!user.isActive) {
   const token = signToken({
     id: user.id,
     username: user.username,
+    branchCode: user.branchId,
     roles,
     permissions
   })
@@ -139,7 +140,7 @@ if (!user.isActive) {
 
 
 export async function createUserService(data: RegisterSchema) {
-  const { email, name, username, password, roleIds } = data
+  const { email, name, username, password, roleIds,branchCode } = data
 
   const existing = await prisma.user.findFirst({
     where: {
@@ -175,6 +176,7 @@ export async function createUserService(data: RegisterSchema) {
         username,
         password: hashedPassword,
         isActive: true,
+        branchId:branchCode
     }
     })
 

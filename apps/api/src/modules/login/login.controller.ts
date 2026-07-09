@@ -90,7 +90,7 @@ export async function createUserController(
         })
       }
   
-      const { email, name, username, password, roleIds } = parsed.data
+      const { email, name, username, password, roleIds,branchCode } = parsed.data
   
       // Create user + roles (transaction)
       const user = await createUserService({
@@ -99,6 +99,7 @@ export async function createUserController(
         username,
         password,
         roleIds,
+        branchCode,
       })
   
       //  Do NOT return password

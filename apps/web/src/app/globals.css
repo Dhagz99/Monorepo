@@ -10,7 +10,7 @@
 
   --color-mainPrimary: #0F2A5F;
   --color-lightPrimary: #1E40AF;
-  --color-darkPrimary: #111827;
+  --color-darkPrimary: #252c3b;
 
   --color-neutralPrimary: #6B7280;
   --color-neutralLight: #F6F6F6;
@@ -20,7 +20,7 @@
   --color-positive-hover: #4ADE80;
   --color-negative: #FF4F46;
 
-  --color-secondary: #FFC300;
+  --color-secondary: rgb(255, 196, 0);
   --color-filter: #FF8025;
 
   --color-white: #FFFFFF;

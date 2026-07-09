@@ -19,6 +19,9 @@ export const calculateDirectCommission = ({
 
   switch (formulaType) {
 
+    case "FORMULA2":
+        return computedAmount;
+
     case "FORMULA3":
         return computedAmount;
 

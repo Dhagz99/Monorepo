@@ -1,58 +1,172 @@
-"use client"
+"use client";
 
 import {
-  MenuIcon,
-  XIcon,
   ChevronDown,
   Cpu,
   ChevronLeft,
-  ChevronRight
-} from "lucide-react"
+  ChevronRight,
+} from "lucide-react";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { MENU_SECTIONS } from "./menu.config"
-import { useRef, useState, useEffect } from "react"
-import { MenuItem, MenuSection } from "@repo/shared"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { MENU_SECTIONS } from "./menu.config";
+import { useRef, useState, useEffect } from "react";
+import { MenuItem, MenuSection } from "@repo/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMyReactivationApprovals } from "@/hooks/reactivation/useReactivation";
+import { socket } from "@/lib/socket";
+import { useAuth } from "../context/UserContext";
 
 const menuItemClass =
-  "flex items-center text-sm gap-x-2 py-2 rounded-md w-full transition-colors cursor-pointer"
+  "flex items-center text-sm gap-x-2 py-2 rounded-md w-full transition-colors cursor-pointer";
 
 type SidebarProps = {
-  isOpen: boolean
-  onToggle: () => void
-}
+  isOpen: boolean;
+  onToggle: () => void;
+};
 
-export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
-  const pathname = usePathname()
-  const router = useRouter()
+export default function Sidebar({
+  isOpen,
+  onToggle,
+}: SidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [showArrow, setShowArrow] = useState(false)
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [showArrow, setShowArrow] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [newTransactionCount, setNewTransactionCount] = useState(0);
+
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: approvalRequests } =
+    useMyReactivationApprovals({});
+
+  const pendingApprovalCount =
+    approvalRequests?.data?.filter(
+      (item) => item.status === "PENDING"
+    ).length ?? 0;
+
+  const hasPermission = (permission?: string) => {
+    if (!permission) return true;
+
+    return (
+      user?.permissions?.includes(permission) ?? false
+    );
+  };
+
+  const getVisibleChildren = (children?: MenuItem[]) => {
+    return children?.filter((child) =>
+      hasPermission(child.permission)
+    );
+  };
 
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
+    const el = scrollRef.current;
+    if (!el) return;
 
     const checkScroll = () => {
-      const isScrollable = el.scrollHeight > el.clientHeight
+      const isScrollable = el.scrollHeight > el.clientHeight;
       const isAtBottom =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - 5
+        el.scrollTop + el.clientHeight >=
+        el.scrollHeight - 5;
 
-      setShowArrow(isScrollable && !isAtBottom)
-    }
+      setShowArrow(isScrollable && !isAtBottom);
+    };
 
-    checkScroll()
+    checkScroll();
 
-    el.addEventListener("scroll", checkScroll)
-    window.addEventListener("resize", checkScroll)
+    el.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
 
     return () => {
-      el.removeEventListener("scroll", checkScroll)
-      window.removeEventListener("resize", checkScroll)
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const isAdmin =
+      user.roles?.includes("ADMIN") ?? false;
+
+    if (user.agent?.id) {
+      socket.emit("join-agent-room", user.agent.id);
+
+      socket.emit(
+        "join-upline-reactivation-room",
+        user.agent.id
+      );
     }
-  }, [])
+
+    if (isAdmin) {
+      socket.emit("join-admin-reactivation-room");
+      socket.emit("join-admin-payment-room");
+      socket.emit("join-admin-withdraw-room");
+    }
+
+    const handleNewReactivationApproval = () => {
+      queryClient.invalidateQueries({
+        queryKey: ["my-reactivation-approvals"],
+      });
+    };
+
+    const handleAdminPaymentUpdated = () => {
+      setNewTransactionCount((prev) => prev + 1);
+
+      queryClient.invalidateQueries({
+        queryKey: ["admin-reactivation-payments"],
+      });
+    };
+
+    const handleAdminWithdrawUpdated = () => {
+      setNewTransactionCount((prev) => prev + 1);
+
+      queryClient.invalidateQueries({
+        queryKey: ["admin-withdrawals"],
+      });
+    };
+
+    socket.on(
+      "admin-payment-updated",
+      handleAdminPaymentUpdated
+    );
+
+    socket.on(
+      "new-reactivation-approval",
+      handleNewReactivationApproval
+    );
+
+    socket.on(
+      "admin-withdraw-updated",
+      handleAdminWithdrawUpdated
+    );
+
+    return () => {
+      socket.off(
+        "new-reactivation-approval",
+        handleNewReactivationApproval
+      );
+
+      socket.off(
+        "admin-payment-updated",
+        handleAdminPaymentUpdated
+      );
+
+      socket.off(
+        "admin-withdraw-updated",
+        handleAdminWithdrawUpdated
+      );
+    };
+  }, [user, queryClient]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/Transaction")) {
+      setNewTransactionCount(0);
+    }
+  }, [pathname]);
 
   return (
     <div
@@ -65,10 +179,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         ${isOpen ? "p-4" : "py-4 px-2"}
       `}
     >
-      {/* Toggle */}
       <button
         onClick={onToggle}
-        className={`
+        className="
           absolute
           top-0
           -right-10
@@ -82,13 +195,12 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           bg-neutralLight
           border
           border-neutralLight
-          text-mainLight
           cursor-pointer
           hover:bg-neutral-100
           transition-all
           duration-200
           text-neutralPrimary
-        `}
+        "
       >
         {isOpen ? (
           <ChevronLeft className="w-custom-24 h-custom-24" />
@@ -97,38 +209,57 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         )}
       </button>
 
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-neutralPrimary pb-3.5 mb-6">
         <button
-        onClick={() => {
-            router.push("/?initialize=true")
-        }}
-        className={`
+          onClick={() => {
+            router.push("/?initialize=true");
+          }}
+          className={`
             inline-flex items-center
             ${isOpen ? "justify-between" : "justify-center"}
             w-full
             bg-positive hover:bg-positive-hover
             py-2 rounded-lg text-white px-4
             transition-all duration-300
-        `}
+          `}
         >
-        {isOpen ? (
+          {isOpen ? (
             <>
-            Initialize Clients <Cpu />
+              Initialize Clients <Cpu />
             </>
-        ) : (
+          ) : (
             <Cpu />
-        )}
+          )}
         </button>
       </div>
 
-      {/* Menu */}
       <div
         ref={scrollRef}
         className="flex-1 flex flex-col gap-y-4 w-full overflow-y-auto"
       >
         {MENU_SECTIONS.map((section: MenuSection) => {
-          const visibleItems = section.items
+          const visibleItems = section.items.filter(
+            (item) => {
+              const visibleChildren =
+                getVisibleChildren(item.children);
+
+              if (
+                item.children &&
+                item.children.length > 0
+              ) {
+                return (
+                  visibleChildren &&
+                  visibleChildren.length > 0
+                );
+              }
+
+              return hasPermission(item.permission);
+            }
+          );
+
+          if (visibleItems.length === 0) {
+            return null;
+          }
 
           return (
             <div key={section.title} className="w-full">
@@ -140,47 +271,59 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
               <ul className="flex flex-col gap-y-3 w-full font-semibold">
                 {visibleItems.map((item: MenuItem) => {
-                  const { label, icon: Icon, path, children } = item
-                  const isExpandable = children && children.length > 0
-                  const isExpanded = expanded[label]
+                  const {
+                    label,
+                    icon: Icon,
+                    path,
+                  } = item;
+
+                  const children =
+                    getVisibleChildren(item.children);
+
+                  const isExpandable =
+                    children && children.length > 0;
+
                   const isActive = Boolean(
                     path &&
-                    (
-                      pathname === path ||
-                      pathname.startsWith(path + "/")
-                    )
-                  )
+                      (pathname === path ||
+                        pathname.startsWith(path + "/"))
+                  );
 
-                  // =====================
-                  // EXPANDABLE ITEM
-                  // =====================
                   if (isExpandable && children) {
                     const isChildActive = children.some(
                       (child) =>
                         pathname === child.path ||
-                        pathname.startsWith(child.path + "/")
-                    )
+                        pathname.startsWith(
+                          child.path + "/"
+                        )
+                    );
 
                     return (
                       <li key={label}>
                         <button
                           onClick={() =>
-                            setExpanded(prev => ({
+                            setExpanded((prev) => ({
                               ...prev,
-                              [label]: !prev[label]
+                              [label]: !prev[label],
                             }))
                           }
                           className={`
                             ${menuItemClass}
-                            ${isOpen ? "justify-between px-4" : "justify-center"}
-                            ${isChildActive
-                              ? "bg-mainPrimary text-white"
-                              : "bg-neutralMed text-neutralPrimary hover:bg-mainPrimary hover:text-white"
+                            ${
+                              isOpen
+                                ? "justify-between px-4"
+                                : "justify-center"
+                            }
+                            ${
+                              isChildActive
+                                ? "bg-mainPrimary text-white"
+                                : "bg-neutralMed text-neutralPrimary hover:bg-mainPrimary hover:text-white"
                             }
                           `}
                         >
                           <div className="flex items-center gap-2">
                             {isOpen && <span>{label}</span>}
+
                             {!isOpen && (
                               <Icon className="w-5" />
                             )}
@@ -189,23 +332,26 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                           {isOpen && (
                             <ChevronDown
                               className={`transition-transform ${
-                                isExpanded ? "rotate-180" : ""
+                                expanded[label]
+                                  ? "rotate-180"
+                                  : ""
                               }`}
                             />
                           )}
                         </button>
 
-                        {isExpanded && isOpen && (
+                        {expanded[label] && isOpen && (
                           <ul className="mt-2 flex flex-col gap-2 bg-white p-3 rounded-md shadow">
                             {children.map((child) => {
-                              const ChildIcon = child.icon
+                              const ChildIcon = child.icon;
+
                               const isChildActive = Boolean(
                                 child.path &&
-                                (
-                                  pathname === child.path ||
-                                  pathname.startsWith(child.path + "/")
-                                )
-                              )
+                                  (pathname === child.path ||
+                                    pathname.startsWith(
+                                      child.path + "/"
+                                    ))
+                              );
 
                               return (
                                 <li key={child.label}>
@@ -224,24 +370,25 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                                     <ChildIcon className="w-4" />
                                   </Link>
                                 </li>
-                              )
+                              );
                             })}
                           </ul>
                         )}
                       </li>
-                    )
+                    );
                   }
 
-                  // =====================
-                  // NORMAL ITEM
-                  // =====================
                   return (
                     <li key={label}>
                       <Link
                         href={path!}
                         className={`
                           ${menuItemClass}
-                          ${isOpen ? "justify-between px-4" : "justify-center"}
+                          ${
+                            isOpen
+                              ? "justify-between px-4"
+                              : "justify-center"
+                          }
                           ${
                             isActive
                               ? "bg-mainPrimary text-white"
@@ -249,29 +396,100 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                           }
                         `}
                       >
-                        {isOpen && <span>{label}</span>}
-                        <Icon
+                        <div
                           className={`
-                            w-5
-                            ${isActive ? "text-white" : ""}
+                            relative
+                            flex
+                            items-center
+                            w-full
+                            gap-2
+                            ${
+                              isOpen
+                                ? "justify-between"
+                                : "justify-center"
+                            }
                           `}
-                        />
+                        >
+                          {isOpen && <span>{label}</span>}
+
+                          <div className="relative">
+                            <Icon
+                              className={`
+                                w-5
+                                ${isActive ? "text-white" : ""}
+                              `}
+                            />
+
+                            {label === "Reactivation Request" &&
+                              pendingApprovalCount > 0 && (
+                                <span
+                                  className="
+                                    absolute
+                                    -top-3
+                                    -right-4
+                                    min-w-5
+                                    h-5
+                                    px-1
+                                    flex
+                                    items-center
+                                    justify-center
+                                    rounded-full
+                                    bg-negative
+                                    text-white
+                                    text-[10px]
+                                    font-bold
+                                    leading-none
+                                  "
+                                >
+                                  {pendingApprovalCount > 99
+                                    ? "99+"
+                                    : pendingApprovalCount}
+                                </span>
+                              )}
+
+                            {label === "E-wallet Transaction" &&
+                              newTransactionCount > 0 && (
+                                <span
+                                  className="
+                                    absolute
+                                    -top-3
+                                    -right-4
+                                    min-w-5
+                                    h-5
+                                    px-1
+                                    flex
+                                    items-center
+                                    justify-center
+                                    rounded-full
+                                    bg-negative
+                                    text-white
+                                    text-[10px]
+                                    font-bold
+                                    leading-none
+                                  "
+                                >
+                                  {newTransactionCount > 99
+                                    ? "99+"
+                                    : newTransactionCount}
+                                </span>
+                              )}
+                          </div>
+                        </div>
                       </Link>
                     </li>
-                  )
+                  );
                 })}
               </ul>
             </div>
-          )
+          );
         })}
       </div>
 
-      {/* Scroll indicator */}
       {showArrow && (
         <div className="absolute bottom-0 left-0 w-full flex justify-center opacity-30">
           <ChevronDown className="animate-bounce w-5" />
         </div>
       )}
     </div>
-  )
+  );
 }

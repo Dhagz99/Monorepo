@@ -6,7 +6,7 @@ import {
 
 export const maintenanceReactivationCron =
   cron.schedule(
-   "55 15 * * *",
+   "0 0 * * *",
     async () => {
 
       try {

@@ -56,7 +56,7 @@ const onSubmit = async (
 
     if (
       user?.permissions.includes(
-        "REGULAR_USER"
+        "PROFILE_ACCESS"
       )
     ) {
       router.replace("/Profile");
@@ -65,7 +65,7 @@ const onSubmit = async (
 
     if (
       user?.permissions.includes(
-        "ADMIN_MANAGE"
+        "DASHBOARD_ACCESS"
       )
     ) {
       router.replace("/");

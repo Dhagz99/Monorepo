@@ -291,7 +291,7 @@ export const getAgentTransactionsHistController =
           limit:
             limit
               ? Number(limit)
-              : 5,
+              : 2,
 
           month:
             month
@@ -336,7 +336,14 @@ export const getMasterlistController = async (
         status,
       } = req.query;
 
-  
+      const user = req.user;
+
+      console.log(JSON.stringify(req.user, null, 2));
+
+      const isBranchAccount =
+      user?.roles?.includes("BRANCH_ACC") ?? false;
+
+      console.log(user?.branchCode)
       const result = await agentMasterlist({
         page: page
           ? Number(page)
@@ -355,7 +362,12 @@ export const getMasterlistController = async (
           typeof status === "string"
             ? status
             : undefined,
-      });
+
+        branchCode:
+          isBranchAccount && user?.branchCode
+            ? user.branchCode
+            : undefined,
+          });
   
       return res.status(200).json(result);
   

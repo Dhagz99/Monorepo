@@ -147,6 +147,7 @@ export interface GetMasterlistParams {
   limit?: number;
   search?: string;
   status?: string;
+  branchCode?: string;
 }
 
 export interface MasterlistBranch {
@@ -246,66 +247,64 @@ export interface GetTransactionResponse {
 }
 
 
-
 export interface TransactionHistParams {
   agentId: string;
   limit?: number;
-
   month?: number;
   year?: number;
 }
 
+export type TransactionHistType =
+  | "COMMISSION"
+  | "WITHDRAWAL";
+
 export interface TransactionHist {
   id: string;
 
-  saleReference?: string | null;
+  type: TransactionHistType;
 
-  saleAmount: string;
+  transactionType: string;
 
-  commissionAmount: string;
+  amount: number;
 
-  percentage?: string | null;
-
-  sourceLevel: string;
-
-  commissionType: string
+  status: string;
 
   remarks?: string | null;
 
   createdAt: string;
 
-  sourceAgent: {
+  saleReference?: string | null;
+  saleAmount?: string | number | null;
+  commissionAmount?: string | number | null;
+  percentage?: string | number | null;
+  sourceLevel?: string | null;
+  commissionType?: string | null;
+
+  sourceAgent?: {
     id: string;
-
     fullName: string;
-
     level: string;
-
     agentCode: string;
-  };
+  } | null;
 
-  receiverAgent: {
+  receiverAgent?: {
     id: string;
-
     fullName: string;
-
     level: string;
-
     agentCode: string;
-  };
+  } | null;
+
+  payoutChannel?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
 }
 
 export interface GetTransactionHistResponse {
   data: TransactionHist[];
-
   total: number;
-
   limit: number;
-
+  totalPages: number;
 }
-
-
-
 
 
 // export interface ScannedAgentParams {
@@ -415,21 +414,18 @@ export interface AgentMaintenanceCycle {
 }
 
 export interface AgentNotification {
-
   id: string;
-
+  agentId: string;
   type: string;
-
   title: string;
-
   message: string;
-
   isRead: boolean;
+  createdAt: string | Date;
 
-  createdAt: string;
+  actionType?: string | null;
+  entityId?: string | null;
+  actionResult?: string | null;
 }
-
-
 
 export interface GetAgentDetailsParams {
   agentId: string;
@@ -568,4 +564,94 @@ export interface GetRemainingSalesParams {
 export interface GetRemainingSalesResponse {
   status: string;
   remainingSales: number;
+}
+
+
+export interface SubmitAdminReactivationResponse {
+  message: string;
+  data: {
+    id: string;
+    agentId: string;
+    requestType: "ADMIN_APPROVAL";
+    status: "PENDING";
+  };
+}
+
+export interface ReviewReactivationApprovalPayload {
+  approvalId: string;
+  status: "APPROVED" | "REJECTED";
+  remarks?: string;
+}
+
+
+export interface ReactivationApprovalItem {
+  id: string;
+  requestId: string;
+  reviewerType: "ADMIN" | "UPLINE_AGENT";
+  reviewerUserId?: number | null;
+  reviewerAgentId?: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  approvalOrder: number;
+  isRequired: boolean;
+  assignedAt: string;
+  decidedAt?: string | null;
+  remarks?: string | null;
+
+  request: {
+    id: string;
+    agentId: string;
+    requestType: "ADMIN_APPROVAL" | "SELF_REACTIVATION";
+    status: string;
+    reason?: string | null;
+    createdAt: string;
+
+    agent: {
+      id: string;
+      fullName: string;
+      agentCode: string;
+      level: string;
+      status: string;
+    };
+
+    attachments: {
+      id: string;
+      fileName: string;
+      filePath: string;
+      fileType: string;
+      fileSize: number;
+      uploadedAt: string;
+    }[];
+  };
+}
+
+
+export interface GetMyReactivationApprovalsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+}
+
+export interface GetMyReactivationApprovalsResponse {
+  data: ReactivationApprovalItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ReviewReactivationApprovalPayload {
+  approvalId: string;
+  status: "APPROVED" | "REJECTED";
+  remarks?: string;
+}
+
+export interface ReviewReactivationApprovalResponse {
+  message: string;
+  data: {
+    approvalId: string;
+    requestId: string;
+    approvalStatus: "APPROVED" | "REJECTED";
+    requestStatus: string;
+  };
 }

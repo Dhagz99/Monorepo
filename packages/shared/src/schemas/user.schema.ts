@@ -9,7 +9,8 @@ export const createUserSchema = z.object({
     roleIds: z
       .array(z.number().int().positive())
       .min(1, "At least one role is required"),
-
+    
+    branchCode: z.string().optional(),
    
 
   })

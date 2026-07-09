@@ -22,10 +22,13 @@ import QRCode from "react-qr-code";
 import SweetAlert from "@/components/modal/Swal";
 import Swal from "sweetalert2";
 import AppsTab from "@/components/ui/commonUi/general.tab";
+import { useDebounce } from "@/components/helper/useDebounse";
+
 
 
 type TABKEY =
   | "ACTIVE"
+  | "PROBATION"
   | "EXPIRED"
   | "DROPPED"
   | "SUSPENDED";
@@ -37,56 +40,69 @@ export default function Masterlist() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const page =
-    Number(searchParams.get("page")) || 1;
+  const currentTab =
+    (searchParams.get("tab") as TABKEY) ?? "ACTIVE";
 
-  const searchParam = searchParams.get("search") || "";
+  const page = Number(searchParams.get("page") ?? 1);
+  const searchParam = searchParams.get("search") ?? "";
 
-  const [search, setSearch] =
-    useState(searchParam);
+  const [search, setSearch] = useState(searchParam);
+
+  const debouncedSearch = useDebounce(search, 500);
+
+  const [activeTab, setActiveTab] = useState<TABKEY>(currentTab);
+
+  useEffect(() => {
+    const currentSearch =
+      searchParams.get("search") ?? "";
+
+    const nextSearch = debouncedSearch.trim();
+
+    if (currentSearch === nextSearch) return;
+
+    const params = new URLSearchParams(
+      searchParams.toString()
+    );
+
+    if (nextSearch === "") {
+      params.delete("search");
+    } else {
+      params.set("search", nextSearch);
+    }
+
+    params.set("page", "1");
+
+    router.replace(`${pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  }, [debouncedSearch, pathname, router]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      const params =
-        new URLSearchParams(
-          searchParams.toString()
-        );
+      const params = new URLSearchParams(searchParams.toString());
 
-      if (search.trim() === "") {
+      const currentSearch = searchParams.get("search") ?? "";
+      const nextSearch = search.trim();
+
+      if (currentSearch === nextSearch) return;
+
+      if (nextSearch === "") {
         params.delete("search");
       } else {
-        params.set("search", search);
+        params.set("search", nextSearch);
       }
 
       params.set("page", "1");
 
-      router.replace(
-        `${pathname}?${params.toString()}`,
-        {
-          scroll: false,
-        }
-      );
+      const nextUrl = `${pathname}?${params.toString()}`;
+
+      router.replace(nextUrl, {
+        scroll: false,
+      });
     }, 500);
 
     return () => clearTimeout(timeout);
-  }, [
-    search,
-    pathname,
-    router,
-    searchParams,
-  ]);
-  
-  const initialTab =
-    (searchParams.get(
-      "tab"
-    ) as TABKEY) ??
-    "ACTIVE";
-
-    
-  const [activeTab, setActiveTab] =
-      useState<TABKEY>(
-        initialTab
-      );
+  }, [search, pathname, router]);
   
 
   const {
@@ -99,7 +115,10 @@ export default function Masterlist() {
   });
 
 
-  const updateQueryParams = (key: string, value: string | number) => {
+  const updateQueryParams = (
+    key: string,
+    value: string | number
+  ) => {
     const params = new URLSearchParams(searchParams.toString());
 
     if (value === "") {
@@ -108,7 +127,11 @@ export default function Masterlist() {
       params.set(key, String(value));
     }
 
-    router.replace(`${pathname}?${params.toString()}`);
+    const nextUrl = `${pathname}?${params.toString()}`;
+
+    router.replace(nextUrl, {
+      scroll: false,
+    });
   };
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -172,48 +195,45 @@ export default function Masterlist() {
   }[] = [
     {
       key: "ACTIVE",
-      label: "Active Agents",
+      label: "Active",
       icon: UserCheck,
     },
     {
+      key: "PROBATION",
+      label: "Probation",
+      icon: CalendarX2,
+    },
+    {
       key: "EXPIRED",
-      label: "Expired Agents",
+      label: "Expired",
       icon: CalendarX2,
     },
     {
       key: "SUSPENDED",
-      label: "Suspended Agents",
+      label: "Suspended",
       icon: UserX,
     },
      {
       key: "DROPPED",
-      label: "Dropped Agents",
+      label: "Dropped",
       icon: UserMinus,
     },
   ];
 
-  const changeTab = (
-    tab: TABKEY
-  ) => {
+  const changeTab = (tab: TABKEY) => {
+    if (tab === activeTab) return;
+
     setActiveTab(tab);
 
-    const params =
-      new URLSearchParams(
-        searchParams.toString()
-      );
+    const params = new URLSearchParams(searchParams.toString());
 
     params.set("tab", tab);
     params.set("page", "1");
 
-    router.replace(
-      `?${pathname}?${params.toString()}`,
-      {
-        scroll: false,
-      }
-    );
+    router.replace(`${pathname}?${params.toString()}`, {
+      scroll: false,
+    });
   };
-
-
     
   return (
      <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48">
@@ -397,7 +417,7 @@ export default function Masterlist() {
                               : agent.status === "SUSPENDED"
                               ? "bg-secondary"
                              
-                              : "bg-mainPrimary"
+                              : "bg-neutralPrimary"
 
 
 
@@ -644,10 +664,7 @@ export default function Masterlist() {
             </div>
 
             <button
-              disabled={
-                page ===
-                data?.totalPages
-              }
+              disabled={page >= (data?.totalPages || 1)}
               onClick={() =>
                 updateQueryParams(
                   "page",

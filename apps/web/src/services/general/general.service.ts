@@ -1,5 +1,5 @@
 import axiosInstance, { api } from "@/lib/axios";
-import { CommissionSettingsResponse, GetMasterlistResponse, GetUserResponse, GetUsersParams } from "@repo/shared";
+import { BranchOption, CommissionSettingsResponse, GetBranchesResponse, GetMasterlistResponse, GetRolesApiResponse, GetUserResponse, GetUsersParams, RoleOption } from "@repo/shared";
 
 export const getCommissionSettings =
   async (): Promise<CommissionSettingsResponse> => {
@@ -25,4 +25,17 @@ export const getAllUserService = async (
   );
 
   return res.data;
+};
+
+export const getRoles = async (): Promise<RoleOption[]> =>{
+  const response = await api.get<GetRolesApiResponse>("/general/getRoles");
+  return response.data.data;
+};
+
+export const getBranches = async (): Promise<BranchOption[]> => {
+  const response = await api.get<GetBranchesResponse>(
+    "/general/getBranches"
+  );
+
+  return response.data.data;
 };

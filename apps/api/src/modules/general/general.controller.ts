@@ -1,5 +1,5 @@
-import { Request, Response } from "express";
-import { getAllUsers, getCommissionSettingsService } from "./general.service";
+import { NextFunction, Request, Response } from "express";
+import { getAllUsers, getBranchesService, getCommissionSettingsService, getRolesService } from "./general.service";
 
 export const getCommissionSettingsController =
   async (
@@ -80,3 +80,38 @@ export const getAllUsersController = async (
         }
 
 }
+
+export const getRolesController = async (
+  req:Request,
+  res:Response,
+  next: NextFunction
+) => {
+  try{
+    const data = await getRolesService();
+
+    return res.status(200).json({
+      success:true,
+      data,
+    });
+
+  } catch (error) {
+    next(error);
+  }
+}
+
+export const getBranchesController = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const data = await getBranchesService();
+
+        return res.json({
+            success: true,
+            data,
+        });
+    } catch (err) {
+        next(err);
+    }
+};

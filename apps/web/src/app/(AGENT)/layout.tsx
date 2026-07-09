@@ -16,7 +16,8 @@ import { useForm } from "react-hook-form";
 import { updateAccSchema, UpdateAgentAccSchema } from "@repo/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAgentDetails, useUpdateAgentAccount } from "@/hooks/agents/useAgent";
-import { useCheckReactivation, useSelfReactivate } from "@/hooks/reactivation/useReactivation";
+import { useCheckReactivation, useSelfReactivate,useSubmitAdminReactivationRequest } from "@/hooks/reactivation/useReactivation";
+import PermissionGuard from "@/components/guard/PermissionGuard";
 
 export default function AgentLayout({
   children,
@@ -42,6 +43,10 @@ export default function AgentLayout({
 
     const [reactivation, setReactivation] = useState(false);
 
+    const [openAdminReactivation, setOpenAdminReactivation] = useState(false);
+
+    const [formalRequestFile, setFormalRequestFile] = useState<File | null>(null);
+
 
   const {
     data: reactivationStatus,
@@ -54,6 +59,11 @@ export default function AgentLayout({
     mutateAsync: selfReactivate,
     isPending: isReactivating,
   } = useSelfReactivate();
+
+  const {
+  mutateAsync: submitAdminRequest,
+    isPending: isSubmittingAdminRequest,
+  } = useSubmitAdminReactivationRequest();
     
 
   const form =
@@ -135,34 +145,34 @@ export default function AgentLayout({
   });
   
 
-  // =========================
-  // PROTECT ROUTE
-  // =========================
+  // // =========================
+  // // PROTECT ROUTE
+  // // =========================
 
-  useEffect(() => {
+  // useEffect(() => {
 
-    // still loading user
-    if (loading) return;
+  //   // still loading user
+  //   if (loading) return;
 
-    // not logged in
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
+  //   // not logged in
+  //   if (!user) {
+  //     router.replace("/login");
+  //     return;
+  //   }
 
-    // no permission
-    const hasAccess =
-      user.permissions.includes(
-        "REGULAR_USER"
-      );
+  //   // no permission
+  //   const hasAccess =
+  //     user.permissions.includes(
+  //       "PROFILE_ACCESS"
+  //     );
 
-    if (!hasAccess) {
-      router.replace(
-        "/unauthorized"
-      );
-    }
+  //   if (!hasAccess) {
+  //     router.replace(
+  //       "/unauthorized"
+  //     );
+  //   }
 
-  }, [user, loading, router]);
+  // }, [user, loading, router]);
 
 
 
@@ -259,197 +269,249 @@ export default function AgentLayout({
     }
   };
 
+  const handleCloseAdminReactivation = async () => {
+      setFormalRequestFile(null);
+      setOpenAdminReactivation(false);
+  }
+
+  const handleAdminReactivationSubmit = async () => {
+    if (!formalRequestFile) {
+      SweetAlert.errorAlert(
+        "File Required",
+        "Please upload your formal written reactivation request."
+      );
+
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append(
+      "formalRequestFile",
+      formalRequestFile
+    );
+
+    try {
+      await submitAdminRequest(formData);
+
+      SweetAlert.successAlert(
+        "Request Submitted",
+        "Your admin reactivation request has been submitted successfully."
+      );
+
+      setFormalRequestFile(null);
+      setOpenAdminReactivation(false);
+      setReactivation(false);
+    } catch (error) {
+      SweetAlert.errorAlert(
+        "Submission Failed",
+        getErrorMessage(error)
+      );
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-linear-to-b from-mainPrimary to-mainPrimary">
-          
-      <header
-        className="
-          sticky
-          top-0
-          z-60
-          h-custom-64
-          shrink-0
-          bg-mainPrimary
-          shadow-md
-          flex
-          justify-between
-          items-center
-          px-custom-24
-        "
-      >
-        <Image
-          src="/images/AMSLOGO.svg"
-          alt="JameroGroupOfCompanies"
-          width={160}
-          height={160}
-          priority
-        />
-
-
-        <div
-          onClick={() =>
-            setOpenProfile(true)
-          }
+    <PermissionGuard permission="PROFILE_ACCESS">
+      <div className="flex flex-col min-h-screen bg-linear-to-b from-mainPrimary to-mainPrimary">
+      
+        <header
           className="
-            relative
+            sticky
+            top-0
+            z-60
+            h-custom-64
+            shrink-0
+            bg-mainPrimary
+            shadow-md
             flex
+            justify-between
             items-center
-            justify-center
-            gap-custom-16
-            text-white
-            bg-lightPrimary
-            p-custom-8
-            sm:py-custom-8
-            sm:px-custom-16
-            rounded-lg
-            cursor-pointer
-            hover:scale-103
-            ease-in-out
-            duration-150
+            px-custom-24
           "
         >
-          <div
-            className="
-              border
-              border-white
-              p-1
-              rounded-full
-            "
-          >
-            <User2 size={12} />
-          </div>
-
-          <p
-            className="
-              text-body
-              hidden
-              sm:flex
-            "
-          >
-            {user.username}
-          </p>
-        </div>
-
-        {/* PROFILE DRAWER */}
-        {openProfile && (
+          <Image
+            src="/images/AMSLOGO.svg"
+            alt="JameroGroupOfCompanies"
+            width={160}
+            height={160}
+            priority
+          />
           <div
             onClick={() =>
-              setOpenProfile(false)
+              setOpenProfile(true)
             }
             className="
-              fixed
-              inset-0
-              z-999
-              bg-black/40
-              backdrop-blur-[2px]
+              relative
               flex
-              justify-end
+              items-center
+              justify-center
+              gap-custom-16
+              text-white
+              bg-lightPrimary
+              p-custom-8
+              sm:py-custom-8
+              sm:px-custom-16
+              rounded-lg
+              cursor-pointer
+              hover:scale-103
+              ease-in-out
+              duration-150
             "
           >
             <div
-              onClick={(e) =>
-                e.stopPropagation()
-              }
               className="
-                w-full
-                sm:w-100
-                sm:h-screen
-                h-fit
-                bg-white
-                shadow-2xl
-                flex
-                flex-col
-                animate-in
-                sm:slide-in-from-right
-                fade-in-5
-                duration-300
-                p-custom-24
-                max-h-screen
-                overflow-y-auto
-                sm:m-0
-                mx-custom-32
-                my-custom-48
-                sm:rounded-none
-                rounded-lg
-                text-mainPrimary
+                border
+                border-white
+                p-1
+                rounded-full
               "
             >
-              {/* HEADER */}
+              <User2 size={12} />
+            </div>
+            <p
+              className="
+                text-body
+                hidden
+                sm:flex
+              "
+            >
+              {user.username}
+            </p>
+          </div>
+          {/* PROFILE DRAWER */}
+          {openProfile && (
+            <div
+              onClick={() =>
+                setOpenProfile(false)
+              }
+              className="
+                fixed
+                inset-0
+                z-999
+                bg-black/40
+                backdrop-blur-[2px]
+                flex
+                justify-end
+              "
+            >
               <div
+                onClick={(e) =>
+                  e.stopPropagation()
+                }
                 className="
-                  flex
-                  items-center
-                  justify-between
-                  border-b
-                  border-neutralMed
-                  pb-custom-16
-                "
-              >
-                <h1
-                  className="
-                    text-mdHeader
-                    font-bold
-                  "
-                >
-                  Agent Profile
-                </h1>
-
-                <button
-                  onClick={() =>
-                    setOpenProfile(false)
-                  }
-                  className="
-                    w-8
-                    h-8
-                    rounded-full
-                    bg-neutralLight
-                    hover:bg-neutralMed
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  ✕
-                </button>
-              </div>
-
-
-              <div
-                className="
-                  my-custom-24
+                  w-full
+                  sm:w-100
+                  sm:h-screen
+                  h-fit
+                  bg-white
+                  shadow-2xl
                   flex
                   flex-col
-                  gap-custom-16
+                  animate-in
+                  sm:slide-in-from-right
+                  fade-in-5
+                  duration-300
+                  p-custom-24
+                  max-h-screen
+                  overflow-y-auto
+                  sm:m-0
+                  mx-custom-32
+                  my-custom-48
+                  sm:rounded-none
+                  rounded-lg
+                  text-mainPrimary
                 "
               >
-
-                <div className="w-full flex flex-col items-center justify-center gap-custom-8">
-                      
-                          <QRCode
-                              value={user?.agent?.agentCode || ""}
-                              size={80}
-                          />
-                          
-
-                          <h6>{user?.agent?.agentCode}</h6>
-                          <div className="flex flex-wrap gap-2">
-
-                            {agent?.branches.map((branch) => (
-
-                              <strong
-                                key={branch.id}
-                                className="text-darkPrimary text-body"
-                              >
-                                ( {branch.branch.companyName} )
-                              </strong>
-
-                            ))}
-
-                          </div>
+                {/* HEADER */}
+                <div
+                  className="
+                    flex
+                    items-center
+                    justify-between
+                    border-b
+                    border-neutralMed
+                    pb-custom-16
+                  "
+                >
+                  <h1
+                    className="
+                      text-mdHeader
+                      font-bold
+                    "
+                  >
+                    Agent Profile
+                  </h1>
+                  <button
+                    onClick={() =>
+                      setOpenProfile(false)
+                    }
+                    className="
+                      w-8
+                      h-8
+                      rounded-full
+                      bg-neutralLight
+                      hover:bg-neutralMed
+                      flex
+                      items-center
+                      justify-center
+                    "
+                  >
+                    ✕
+                  </button>
                 </div>
-
-  
-                  <div
+                <div
+                  className="
+                    my-custom-24
+                    flex
+                    flex-col
+                    gap-custom-16
+                  "
+                >
+                  <div className="w-full flex flex-col items-center justify-center gap-custom-8">
+      
+                            <QRCode
+                                value={user?.agent?.agentCode || ""}
+                                size={80}
+                            />
+      
+                            <h6>{user?.agent?.agentCode}</h6>
+                            <div className="flex flex-wrap gap-2">
+                              {agent?.branches.map((branch) => (
+                                <strong
+                                  key={branch.id}
+                                  className="text-darkPrimary text-body"
+                                >
+                                  ( {branch.branch.companyName} )
+                                </strong>
+                              ))}
+                            </div>
+                  </div>
+                    <div
+                      className="
+                        bg-neutralLight
+                        p-custom-16
+                        rounded-xl
+                        w-full
+                      "
+                    >
+                      <h2
+                        className="
+                          text-xs
+                          text-neutralPrimary
+                        "
+                      >
+                        Username
+                      </h2>
+                      <p
+                        className="
+                          font-bold
+                          text-sm
+                        "
+                      >
+                        {user.username}
+                      </p>
+                    </div>
+                    <div
                     className="
                       bg-neutralLight
                       p-custom-16
@@ -463,385 +525,455 @@ export default function AgentLayout({
                         text-neutralPrimary
                       "
                     >
-                      Username
+                      Telephone
                     </h2>
-                    <p
-                      className="
-                        font-bold
-                        text-sm
-                      "
-                    >
-                      {user.username}
+                    <p className="font-bold text-sm">
+                       {user?.agent?.telephone}
                     </p>
                   </div>
-
-
+      
+      
                   <div
-                  className="
-                    bg-neutralLight
-                    p-custom-16
-                    rounded-xl
-                    w-full
-                  "
-                >
-                  <h2
                     className="
-                      text-xs
-                      text-neutralPrimary
-                    "
-                  >
-                    Telephone
-                  </h2>
-
-                  <p className="font-bold text-sm">
-                     {user?.agent?.telephone}
-                  </p>
-                </div>
-          
-                
-                <div
-                  className="
-                    bg-neutralLight
-                    p-custom-16
-                    rounded-xl
-                  "
-                >
-                  <h2
-                    className="
-                      text-xs
-                      text-neutralPrimary
-                    "
-                  >
-                    Email Address
-                  </h2>
-
-                  <p className="font-bold text-sm">
-                    {user.agent?.email}
-                  </p>
-                </div>
-
-                
-
-
-                <div className="flex w-full justify-start items-center gap-custom-16 text-white">
-
-                    <button onClick={()=>{
-                      setAgentUpdate(true);
-                    }} className="w-full text-xs bg-positive
-                     p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
-                      Edit Profile
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setReactivation(true);
-                      }}
-                      className="w-full text-xs text-white bg-mainPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150"
-                    >
-                      Reactivation
-                    </button>
-
-                </div>
-
-                <button   onClick={handleLogout} className="w-full text-xs text-white bg-neutralPrimary p-custom-8 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
-                      Sign Out
-                </button>
-
-
-              </div>
-
-
-
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* CONTENT */}
-      <main className="p-6">
-        {children}
-      </main>
-
-      {reactivation && (
-        <MainModal
-          size="lg"
-          onClose={handleCloseReactivation}
-        >
-          <div className="flex flex-col gap-custom-16">
-            <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
-              <Image
-                src="/images/AMSLOGO.svg"
-                alt="JameroGroupOfCompanies"
-                width={160}
-                height={160}
-                priority
-              />
-            </div>
-
-            <div className="px-custom-32 flex flex-col gap-y-custom-8">
-              <h1 className="text-mdHeader font-bold text-mainPrimary">
-                Request For Reactivation
-              </h1>
-
-              <p>
-                Check your self-reactivation period based on your expiration date.
-              </p>
-            </div>
-
-            <div className="px-custom-32 pb-custom-32 flex flex-col gap-custom-16">
-              {isCheckingReactivation ? (
-                <div className="bg-neutralLight p-custom-16 rounded-xl">
-                  Checking reactivation eligibility...
-                </div>
-              ) : isReactivationCheckError ? (
-                <div className="bg-negative/10 text-negative p-custom-16 rounded-xl">
-                  {getErrorMessage(reactivationCheckError)}
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-custom-16">
-                    <div className="bg-neutralLight p-custom-16 rounded-xl">
-                      <p className="text-xs text-neutralPrimary">
-                        Agent Status
-                      </p>
-
-                      <h2 className="font-bold text-mainPrimary">
-                        {reactivationStatus?.agentStatus ?? "N/A"}
-                      </h2>
-                    </div>
-
-                    <div className="bg-neutralLight p-custom-16 rounded-xl">
-                      <p className="text-xs text-neutralPrimary">
-                        Days Expired
-                      </p>
-
-                      <h2 className="font-bold text-mainPrimary">
-                        {reactivationStatus?.daysExpired ?? 0} days
-                      </h2>
-                    </div>
-
-                    <div className="bg-neutralLight p-custom-16 rounded-xl">
-                      <p className="text-xs text-neutralPrimary">
-                        Remaining Days
-                      </p>
-
-                      <h2 className="font-bold text-mainPrimary">
-                        {reactivationStatus?.remainingDays ?? 0} days
-                      </h2>
-                    </div>
-                  </div>
-
-                  <div className="bg-neutralLight p-custom-16 rounded-xl">
-                    <p className="text-xs text-neutralPrimary">
-                      Reactivation Phase
-                    </p>
-
-                    <h2 className="font-bold text-mainPrimary">
-                      {reactivationStatus?.phase ?? "N/A"}
-                    </h2>
-                  </div>
-
-                  <div
-                    className={`
+                      bg-neutralLight
                       p-custom-16
                       rounded-xl
-                      text-sm
-                      ${
-                        reactivationStatus?.eligible
-                          ? "bg-positive/10 text-positive"
-                          : "bg-negative/10 text-negative"
-                      }
-                    `}
+                    "
                   >
-                    {reactivationStatus?.message}
+                    <h2
+                      className="
+                        text-xs
+                        text-neutralPrimary
+                      "
+                    >
+                      Email Address
+                    </h2>
+                    <p className="font-bold text-sm">
+                      {user.agent?.email}
+                    </p>
                   </div>
-
-                      
-                 {
-                reactivationStatus?.phase === "REACTIVATION_VIA_ADMIN" ? (
-                  <button
-                    type="button"
-                    onClick={handleSelfReactivation}
-                    className="
-                      w-full
-                      text-white
-                      bg-mainPrimary
-                      p-3
-                      rounded-lg
-                      font-bold
-                      disabled:opacity-50
-                      disabled:cursor-not-allowed
-                      cursor-pointer
-                      hover:bg-lightPrimary
-                      ease-in-out
-                      duration-150
-                    "
-                  >
-                    {isReactivating
-                      ? "Reactivating..."
-                      : "Reactivate via Admin Approval"}
+      
+                  <div className="flex w-full justify-start items-center gap-custom-16 text-white">
+                      <button onClick={()=>{
+                        setAgentUpdate(true);
+                      }} className="w-full text-sm font-bold bg-secondary
+                       py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setReactivation(true);
+                        }}
+                        className="w-full text-sm text-white bg-mainPrimary font-bold py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150"
+                      >
+                        Reactivation
+                      </button>
+                  </div>
+                  <button   onClick={handleLogout} className="w-full text-sm font-bold text-white bg-neutralPrimary py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                        Sign Out
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={
-                      !reactivationStatus?.eligible ||
-                      isReactivating
-                    }
-                    onClick={handleSelfReactivation}
-                    className="
-                      w-full
-                      text-white
-                      bg-mainPrimary
-                      p-3
-                      rounded-lg
-                      font-bold
-                      disabled:opacity-50
-                      disabled:cursor-not-allowed
-                      cursor-pointer
-                      hover:bg-lightPrimary
-                      ease-in-out
-                      duration-150
-                    "
-                  >
-                    {isReactivating
-                      ? "Reactivating..."
-                      : "Self Reactivate Account"}
-                  </button>
-                )
-              }
-                </>
-              )}
-            </div>
-          </div>
-        </MainModal>
-      )}
-
-      {agentUpdate && (
-          <MainModal size="md"   onClose={handleCloseAgentUpdate}>
-                    
-              <div
-                className="
-                  flex
-                  flex-col
-                  gap-custom-16
-                "
-              >
-
-              <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
-                 <Image
-                   src="/images/AMSLOGO.svg"
-                   alt="JameroGroupOfCompanies"
-                   width={160}
-                   height={160}
-                   priority
-                 />
-              </div> 
-                
-              <div className="px-custom-32 flex flex-col gap-y-custom-8">
-                    <h1 className="text-mdHeader font-bold text-mainPrimary">Update Your Profile</h1>
-                    <p>Configure account information and password to enable secure access.</p>
+                </div>
               </div>
-
-
-              
-              <form
-                  onSubmit={form.handleSubmit(
-                    onSubmit
-                  )}
-                  className="flex flex-col gap-y-custom-16 w-full px-custom-32 pb-custom-32"
-                >
-
-                <div className="flex flex-col gap-y-custom-8">
-                  <label htmlFor="name" className="font-bold text-xs">Email Address</label>
-                  <input
-                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
-                    placeholder="Email"
-                    {...form.register("email")}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-y-custom-8">
-                  <label htmlFor="name" className="font-bold text-xs">Telephone Number</label>
-                  <input
-                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
-                    placeholder="Telephone"
-                    {...form.register("agentTel")}
-                  />
-                </div>
-
-                <div className="relative flex flex-col gap-y-custom-8">
-                  <label
-                    htmlFor="password"
-                    className="font-bold text-xs"
-                  >
-                    New Password
-                  </label>
-
-                  <input
-                    className="
-                      bg-neutralLight
-                      border
-                      border-neutralMed
-                      py-3
-                      px-custom-16
-                      rounded-lg
-                    "
-                    type="password"
-                    placeholder="Password"
-                    {...form.register("password")}
-                  />
-
-                  {form.formState.errors.password && (
-                    <p className="absolute -bottom-4 text-negative text-xs">
-                      {form.formState.errors.password.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="relative flex flex-col gap-y-custom-8">
-                  <label
-                    htmlFor="confirmPassword"
-                    className="font-bold text-xs"
-                  >
-                    Confirm Password
-                  </label>
-
-                  <input
-                    className="
-                      bg-neutralLight
-                      border
-                      border-neutralMed
-                      py-3
-                      px-custom-16
-                      rounded-lg
-                      disabled:opacity-50
-                    "
-                    type="password"
-                    placeholder="Confirm Password"
-                    disabled={!password}
-                    {...form.register("confirmPassword")}
-                  />
-
-                  {form.formState.errors.confirmPassword && (
-                    <p className="absolute -bottom-4 text-negative text-xs">
-                      {
-                        form.formState.errors
-                          .confirmPassword?.message
-                      }
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={!isDirty || isSubmitting}
+            </div>
+          )}
+        </header>
+        {/* CONTENT */}
+        <main className="p-6">
+          {children}
+        </main>
+        {reactivation && (
+          <MainModal
+            size="lg"
+            onClose={handleCloseReactivation}
+          >
+            <div className="flex flex-col gap-custom-16">
+              <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+                <Image
+                  src="/images/AMSLOGO.svg"
+                  alt="JameroGroupOfCompanies"
+                  width={160}
+                  height={160}
+                  priority
+                />
+              </div>
+              <div className="px-custom-32 flex flex-col gap-y-custom-8">
+                <h1 className="text-mdHeader font-bold text-mainPrimary">
+                  Request For Reactivation
+                </h1>
+                <p>
+                  Check your self-reactivation period based on your expiration date.
+                </p>
+              </div>
+              <div className="px-custom-32 pb-custom-32 flex flex-col gap-custom-16">
+                {isCheckingReactivation ? (
+                  <div className="bg-neutralLight p-custom-16 rounded-xl">
+                    Checking reactivation eligibility...
+                  </div>
+                ) : isReactivationCheckError ? (
+                  <div className="bg-negative/10 text-negative p-custom-16 rounded-xl">
+                    {getErrorMessage(reactivationCheckError)}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-custom-16">
+                      <div className="bg-neutralLight p-custom-16 rounded-xl">
+                        <p className="text-xs text-neutralPrimary">
+                          Agent Status
+                        </p>
+                        <h2 className="font-bold text-mainPrimary">
+                          {reactivationStatus?.agentStatus ?? "N/A"}
+                        </h2>
+                      </div>
+                      {reactivationStatus?.phase === "PROBATION_PERIOD" ? (
+                      <>
+                        <div className="bg-neutralLight p-custom-16 rounded-xl">
+                          <p className="text-xs text-neutralPrimary">
+                            Days on Probation
+                          </p>
+                          <h2 className="font-bold text-mainPrimary">
+                            {reactivationStatus?.daysProbation ?? 0} days
+                          </h2>
+                        </div>
+                        <div className="bg-neutralLight p-custom-16 rounded-xl">
+                          <p className="text-xs text-neutralPrimary">
+                            Remaining Probation Days
+                          </p>
+                          <h2 className="font-bold text-mainPrimary">
+                            {reactivationStatus?.remainingProbation ?? 0} days
+                          </h2>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-neutralLight p-custom-16 rounded-xl">
+                          <p className="text-xs text-neutralPrimary">
+                            Days Expired
+                          </p>
+                          <h2 className="font-bold text-mainPrimary">
+                            {reactivationStatus?.daysExpired ?? 0} days
+                          </h2>
+                        </div>
+                        <div className="bg-neutralLight p-custom-16 rounded-xl">
+                          <p className="text-xs text-neutralPrimary">
+                            Remaining Days
+                          </p>
+                          <h2 className="font-bold text-mainPrimary">
+                            {reactivationStatus?.remainingDays ?? 0} days
+                          </h2>
+                        </div>
+                      </>
+                    )}
+                    </div>
+                    {reactivationStatus?.phase === "COOLDOWN_PERIOD" ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 justify-between gap-custom-16">
+                      <div className="bg-neutralLight p-custom-16 rounded-xl">
+                        <p className="text-xs text-neutralPrimary">
+                          Reactivation Phase
+                        </p>
+                        <h2 className="font-bold text-mainPrimary">
+                          {reactivationStatus?.phase ?? "N/A"}
+                        </h2>
+                      </div>
+                       <div className="bg-neutralLight p-custom-16 rounded-xl">
+                        <p className="text-xs text-neutralPrimary">
+                          Cooldown Remaining Days
+                        </p>
+                        <h2 className="font-bold text-mainPrimary">
+                          {reactivationStatus?.cooldownDays ?? "N/A"}
+                        </h2>
+                      </div>
+                    </div>
+      
+                  ): (
+                    <div className="bg-neutralLight p-custom-16 rounded-xl">
+                      <p className="text-xs text-neutralPrimary">
+                        Reactivation Phase
+                      </p>
+                      <h2 className="font-bold text-mainPrimary">
+                        {reactivationStatus?.phase ?? "N/A"}
+                      </h2>
+                    </div>)
+      
+                    }
+                    <div
+                      className={`
+                        p-custom-16
+                        rounded-xl
+                        text-sm
+                        ${
+                          reactivationStatus?.eligible
+                            ? "bg-positive/10 text-positive"
+                            : "bg-negative/10 text-negative"
+                        }
+                      `}
+                    >
+                      {reactivationStatus?.message}
+                    </div>
+      
+                    {
+                      reactivationStatus?.phase ===
+                      "REACTIVATION_VIA_ADMIN" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenAdminReactivation(true)
+                          }
+                          className="
+                            w-full
+                            text-white
+                            bg-mainPrimary
+                            p-3
+                            rounded-lg
+                            font-bold
+                            cursor-pointer
+                            hover:bg-lightPrimary
+                            ease-in-out
+                            duration-150
+                          "
+                        >
+                          Reactivate via Admin Approval
+                        </button>
+                      ) : reactivationStatus?.phase ===
+                        "SELF_REACTIVATION" ? (
+                        <button
+                          type="button"
+                          disabled={
+                            !reactivationStatus?.eligible ||
+                            isReactivating
+                          }
+                          onClick={handleSelfReactivation}
+                          className="
+                            w-full
+                            text-white
+                            bg-mainPrimary
+                            p-3
+                            rounded-lg
+                            font-bold
+                            disabled:opacity-50
+                            disabled:cursor-not-allowed
+                            cursor-pointer
+                            hover:bg-lightPrimary
+                            ease-in-out
+                            duration-150
+                          "
+                        >
+                          {isReactivating
+                            ? "Reactivating..."
+                            : "Self Reactivate Account"}
+                        </button>
+                      ) : null
+                    }
+                  </>
+                )}
+              </div>
+            </div>
+          </MainModal>
+        )}
+        {agentUpdate && (
+            <MainModal size="md"   onClose={handleCloseAgentUpdate}>
+      
+                <div
                   className="
+                    flex
+                    flex-col
+                    gap-custom-16
+                  "
+                >
+                <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+                   <Image
+                     src="/images/AMSLOGO.svg"
+                     alt="JameroGroupOfCompanies"
+                     width={160}
+                     height={160}
+                     priority
+                   />
+                </div>
+      
+                <div className="px-custom-32 flex flex-col gap-y-custom-8">
+                      <h1 className="text-mdHeader font-bold text-mainPrimary">Update Your Profile</h1>
+                      <p>Configure account information and password to enable secure access.</p>
+                </div>
+      
+                <form
+                    onSubmit={form.handleSubmit(
+                      onSubmit
+                    )}
+                    className="flex flex-col gap-y-custom-16 w-full px-custom-32 pb-custom-32"
+                  >
+                  <div className="flex flex-col gap-y-custom-8">
+                    <label htmlFor="name" className="font-bold text-xs">Email Address</label>
+                    <input
+                    className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                      placeholder="Email"
+                      {...form.register("email")}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-y-custom-8">
+                    <label htmlFor="name" className="font-bold text-xs">Telephone Number</label>
+                    <input
+                    className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                      placeholder="Telephone"
+                      {...form.register("agentTel")}
+                    />
+                  </div>
+                  <div className="relative flex flex-col gap-y-custom-8">
+                    <label
+                      htmlFor="password"
+                      className="font-bold text-xs"
+                    >
+                      New Password
+                    </label>
+                    <input
+                      className="
+                        bg-neutralLight
+                        border
+                        border-neutralMed
+                        py-3
+                        px-custom-16
+                        rounded-lg
+                      "
+                      type="password"
+                      placeholder="Password"
+                      {...form.register("password")}
+                    />
+                    {form.formState.errors.password && (
+                      <p className="absolute -bottom-4 text-negative text-xs">
+                        {form.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="relative flex flex-col gap-y-custom-8">
+                    <label
+                      htmlFor="confirmPassword"
+                      className="font-bold text-xs"
+                    >
+                      Confirm Password
+                    </label>
+                    <input
+                      className="
+                        bg-neutralLight
+                        border
+                        border-neutralMed
+                        py-3
+                        px-custom-16
+                        rounded-lg
+                        disabled:opacity-50
+                      "
+                      type="password"
+                      placeholder="Confirm Password"
+                      disabled={!password}
+                      {...form.register("confirmPassword")}
+                    />
+                    {form.formState.errors.confirmPassword && (
+                      <p className="absolute -bottom-4 text-negative text-xs">
+                        {
+                          form.formState.errors
+                            .confirmPassword?.message
+                        }
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!isDirty || isSubmitting}
+                    className="
+                      text-white
+                      p-3
+                      rounded-lg
+                      text-body
+                      font-bold
+                      bg-mainPrimary
+                      disabled:opacity-50
+                      disabled:cursor-not-allowed
+                      cursor-pointer
+                      hover:bg-lightPrimary
+                      ease-in-out
+                      duration-150
+                    "
+                  >
+                    {isSubmitting
+                      ? "Updating..."
+                      : "Update Account Details"}
+                  </button>
+                </form>
+      
+      
+                </div>
+          </MainModal>
+        )}
+        {openAdminReactivation && (
+          <MainModal
+            size="md"
+            onClose={() => {
+              handleCloseAdminReactivation()
+            }}
+          >
+            <div className="flex flex-col gap-custom-16">
+              <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+                <Image
+                  src="/images/AMSLOGO.svg"
+                  alt="JameroGroupOfCompanies"
+                  width={160}
+                  height={160}
+                  priority
+                />
+              </div>
+              <div className="px-custom-32 flex flex-col gap-y-custom-8">
+                <h1 className="text-mdHeader font-bold text-mainPrimary">
+                  Admin Reactivation Request
+                </h1>
+                <p>
+                  Upload your formal written reactivation request.
+                  Accepted files: PDF, JPG, JPEG, or PNG.
+                </p>
+              </div>
+              <div className="px-custom-32 pb-custom-32 flex flex-col gap-custom-16">
+                <div className="flex flex-col gap-y-custom-8">
+                  <label className="font-bold text-xs">
+                    Formal Written Reactivation Request
+                  </label>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg,image/jpg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setFormalRequestFile(file);
+                    }}
+                    className="
+                      bg-neutralLight
+                      border
+                      border-neutralMed
+                      py-3
+                      px-custom-16
+                      rounded-lg
+                    "
+                  />
+                </div>
+                {formalRequestFile && (
+                  <div className="bg-neutralLight p-custom-16 rounded-xl">
+                    <p className="text-xs text-neutralPrimary">
+                      Selected File
+                    </p>
+                    <h2 className="font-bold text-mainPrimary break-all">
+                      {formalRequestFile.name}
+                    </h2>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    !formalRequestFile ||
+                    isSubmittingAdminRequest
+                  }
+                  onClick={handleAdminReactivationSubmit}
+                  className="
+                    w-full
                     text-white
+                    bg-mainPrimary
                     p-3
                     rounded-lg
-                    text-body
                     font-bold
-                    bg-mainPrimary
                     disabled:opacity-50
                     disabled:cursor-not-allowed
                     cursor-pointer
@@ -850,19 +982,15 @@ export default function AgentLayout({
                     duration-150
                   "
                 >
-                  {isSubmitting
-                    ? "Updating..."
-                    : "Update Account Details"}
+                  {isSubmittingAdminRequest
+                    ? "Submitting..."
+                    : "Submit Request for Admin Approval"}
                 </button>
-
-              </form>
-              
-              
               </div>
-
-        </MainModal>
-      )}
-
-    </div>
+            </div>
+          </MainModal>
+        )}
+      </div>
+    </PermissionGuard>
   );
 }

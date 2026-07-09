@@ -301,7 +301,7 @@ import {
 
 export const maintenanceResetCron =
   cron.schedule(
-     "59 14 * * *",
+     "0 0 * * *",
     async () => {
 
       try {
