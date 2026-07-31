@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -299,19 +300,42 @@ export default function ClientsPage() {
 
 
   const handleConfirmCommission = () => {
+      if (!scannedAgent || !user?.id) {
+        return;
+      }
 
-    if (!scannedAgent || !user?.id) {
-      return;
-    }
+      if (!branchCode) {
+        SweetAlert.errorAlert(
+          "Branch Required",
+          "Your account does not have an assigned branch."
+        );
 
-    if (!branchCode) {
-      SweetAlert.errorAlert(
-        "Branch Required",
-        "Your account does not have an assigned branch."
-      );
+        return;
+      }
 
-      return;
-    }
+      if (
+        payoutChannel === "GCASH" &&
+        !selectedPhoneNumber.trim()
+      ) {
+        SweetAlert.errorAlert(
+          "GCash Number Required",
+          "Please select a registered GCash number."
+        );
+
+        return;
+      }
+
+      if (
+        payoutChannel === "CHECK" &&
+        !checkNumber.trim()
+      ) {
+        SweetAlert.errorAlert(
+          "Check Number Required",
+          "Please enter the check number."
+        );
+
+        return;
+      }
 
     SweetAlert.confirmationAlert(
       "Confirm Commission",
@@ -372,7 +396,18 @@ export default function ClientsPage() {
      RENDER
   ========================================= */
 
-  
+    useEffect(() => {
+  if (!scannedAgent) {
+    setSelectedPhoneNumber("");
+    return;
+  }
+
+  setSelectedPhoneNumber(
+    scannedAgent.agent.telephone ??
+    scannedAgent.agent.SecondaryTel ??
+    ""
+  );
+}, [scannedAgent]);
 
   return (
     <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48 ">
@@ -1226,9 +1261,12 @@ export default function ClientsPage() {
                                 </label>
 
                                 <select
+                                  id="gcashNumber"
                                   value={selectedPhoneNumber}
-                                  onChange={(e) =>
-                                    setSelectedPhoneNumber(e.target.value)
+                                  onChange={(event) =>
+                                    setSelectedPhoneNumber(
+                                      event.target.value
+                                    )
                                   }
                                   className="
                                     w-full
@@ -1242,15 +1280,36 @@ export default function ClientsPage() {
                                     text-md
                                   "
                                 >
-                                  <option value={scannedAgent?.agent.telephone}>
-                                    Primary - {scannedAgent?.agent.telephone}
-                                  </option>
+                                  {!scannedAgent.agent.telephone &&
+                                    !scannedAgent.agent.SecondaryTel && (
+                                      <option value="">
+                                        No registered number
+                                      </option>
+                                    )}
 
-                                  {scannedAgent?.agent.SecondaryTel && (
+                                  {scannedAgent.agent.telephone && (
                                     <option
-                                      value={scannedAgent.agent.SecondaryTel}
+                                      value={
+                                        scannedAgent.agent.telephone
+                                      }
                                     >
-                                      Secondary - {scannedAgent.agent.SecondaryTel}
+                                      Primary -{" "}
+                                      {
+                                        scannedAgent.agent.telephone
+                                      }
+                                    </option>
+                                  )}
+
+                                  {scannedAgent.agent.SecondaryTel && (
+                                    <option
+                                      value={
+                                        scannedAgent.agent.SecondaryTel
+                                      }
+                                    >
+                                      Secondary -{" "}
+                                      {
+                                        scannedAgent.agent.SecondaryTel
+                                      }
                                     </option>
                                   )}
                                 </select>
