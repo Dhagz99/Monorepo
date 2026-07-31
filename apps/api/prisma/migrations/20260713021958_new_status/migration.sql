@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ReactivationRequestStatus" ADD VALUE 'APPROVED_WAITING_CONFIRMATION';

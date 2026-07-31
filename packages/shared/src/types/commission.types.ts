@@ -6,19 +6,7 @@ export interface ScannedAgentParams {
   clientId: string;
 }
 
-export interface ScannedAgentBranch {
-  id: string;
 
-  branchId: string;
-
-  branch: {
-    branchCode: string;
-
-    companyName?: string | null;
-
-    location?: string | null;
-  };
-}
 
 export interface ScannedAgentResponse {
   agent: {
@@ -28,7 +16,9 @@ export interface ScannedAgentResponse {
     fullName: string;
     level: string;
     status: string;
-    branches: ScannedAgentBranch[];
+    telephone: string;
+    SecondaryTel : string;
+
   };
 
   client: {
@@ -76,11 +66,26 @@ export interface ScannedAgentResponse {
   }[];
 }
 
+export type CommissionPayoutChannel =
+  | "GCASH"
+  | "CHECK";
+
 export interface CreateCommissionPayload {
   clientId: string;
   agentId: string;
   branchId: string;
   scannedBy: number;
+
+  payoutChannel:
+    CommissionPayoutChannel;
+
+  checkNumber?: string;
+  gcashNumber?: string;
+}
+
+export interface ProcessDirectCommissionPayoutPayload {
+  payoutRequestId: string;
+  agentFullName: string;
 }
 
 export interface UpdateCommissionRules {

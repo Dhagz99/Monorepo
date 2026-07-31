@@ -102,3 +102,38 @@ export interface GetBranchesResponse {
     success: boolean;
     data: BranchOption[];
 }
+
+export interface DateRange {
+    startDate: string;
+    endDate: string;
+  };
+
+
+
+export type EligibleAgentOption = {
+  id: string;
+  agentCode: string;
+  fullName: string;
+  level: string;
+  status: string;
+};
+
+export type SearchEligibleAgentsResponse = {
+  data: EligibleAgentOption[];
+};
+
+
+
+
+
+// General Settings 
+
+
+export type OverrideRulePayload = {
+  receiverLevel: string;
+  sourceLevel: string;
+  amount: number;
+};
+
+
+

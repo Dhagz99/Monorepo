@@ -6,7 +6,6 @@ export const registrationAgentSchema =
     agentQrCode: z.string().optional(),
     email: z
       .string()
-      .email()
       .optional(),
 
     agentName: z
@@ -39,6 +38,13 @@ export const registrationAgentSchema =
         "Phone number must be 11 digits"
       ),
 
+    agentSecTel: z
+      .string()
+      .max(
+        11,
+        "Phone number must be 11 digits"
+      )
+      .optional(),
     agentAdd: z
       .string()
       .min(

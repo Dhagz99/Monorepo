@@ -3,23 +3,19 @@
 import { getErrorMessage } from "@/components/helper/errorHelper";
 import MainModal from "@/components/modal/mainModal";
 import SweetAlert from "@/components/modal/Swal";
-import AppsTab from "@/components/ui/commonUi/general.tab";
 import ModuleHeader from "@/components/ui/commonUi/page.header";
-import { useAdminReactivationPayments, useAdminWithdrawals } from "@/hooks/transaction/useTransaction";
+import { useAdminWithdrawals } from "@/hooks/transaction/useTransaction";
 import { useApproveWithdrawalRequest, useRejectFailedWithdrawalRequest } from "@/hooks/withdrawal/useWithdrawal";
 import { socket } from "@/lib/socket";
-import { AdminReactivationPayment, AdminWithdrawalRequest } from "@repo/shared";
+import { AdminWithdrawalRequest } from "@repo/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Inspect, Send, WalletMinimalIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Inspect } from "lucide-react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import QRCode from "react-qr-code";
 import Swal from "sweetalert2";
 
-type TABKEY =
-  "PAYMENTS"
-  |"WITHDRAW"
-  ;
+
 export default function Transaction() {
     const router = useRouter();
     const pathname = usePathname();
@@ -52,59 +48,29 @@ export default function Transaction() {
     }, [queryClient]);
 
     const searchParam = searchParams.get("search") || "";
-
-    const initialTab =
-        (searchParams.get("tab") as TABKEY) ??
-        "PAYMENTS";
-    
-    const [activeTab, setActiveTab] =
-        useState<TABKEY>(initialTab);
     
     const [search, setSearch] = useState(searchParam);
 
-    const [page, setPage] = useState(1);
-
-
-    const {
-    data: paymentData,
-    isLoading: isPaymentLoading,
-    } = useAdminReactivationPayments(
-    {
-        page,
-        limit: 10,
-        search,
-    },
-    activeTab === "PAYMENTS"
+    const page = Math.max(
+        1,
+        Number(
+            searchParams.get("page") || "1"
+        )
     );
 
     const {
     data: withdrawalData,
     isLoading: isWithdrawalLoading,
-    } = useAdminWithdrawals(
-    {
-        page,
-        limit: 10,
-        search,
-    },
-    activeTab === "WITHDRAW"
-    );
+    } = useAdminWithdrawals({
+    page,
+    limit: 10,
+    search: search.trim() || undefined,
+    });
 
     const {
     mutateAsync: rejectWithdrawal,
-    isPending: isRejectingWithdrawal,
     } = useRejectFailedWithdrawalRequest();
 
-    const [selectedPayment, setSelectedPayment] =
-    useState<AdminReactivationPayment | null>(null);
-    const [openPaymentDetails, setOpenPaymentDetails] =
-    useState(false);
-
-    const handleViewPaymentDetails = (
-    payment: AdminReactivationPayment
-    ) => {
-    setSelectedPayment(payment);
-    setOpenPaymentDetails(true);
-    };
 
     const [selectedWithdraw, setSelectedWithdraw] = useState<AdminWithdrawalRequest | null>(null);
     const [openWithdrawDetails, setOpenWithdrawDetails]= useState(false);
@@ -116,10 +82,6 @@ export default function Transaction() {
         setOpenWithdrawDetails(true);
     }
 
-    const handleClosePaymentDetails = () => {
-        setSelectedPayment(null);
-        setOpenPaymentDetails(false);
-    };
     const handleCloseWithdrawDetails = () => {
         setSelectedWithdraw(null);
         setOpenWithdrawDetails(false);
@@ -208,85 +170,50 @@ export default function Transaction() {
     }
     };
 
-    const TABS: {
-        key: TABKEY;
-        label: string;
-        icon: React.ElementType;
-    }[] = [
-      
-        {
-        key: "PAYMENTS",
-        label: "Agent Payments",
-        icon: Send,
-        },
-        {
-        key: "WITHDRAW",
-        label: "Agent Withdrawals",
-        icon: WalletMinimalIcon,
-        }
-    ];
-
-    /* =========================================
-        CHANGE TAB
-    ========================================= */
-
-    const changeTab = (tab: TABKEY) => {
-        setActiveTab(tab);
-
-        setPage(1);
-
-        const params =
-        new URLSearchParams(
-            searchParams.toString()
-        );
-
-        params.set("tab", tab);
-
-        router.replace(
-        `?${params.toString()}`,
-        {
-            scroll: false,
-        }
-        );
-    };
-    
 
     const updateQueryParams = (
-        nextPage: number
+    nextPage: number
+    ) => {
+    const totalPages =
+        withdrawalData?.totalPages ?? 1;
 
-        ) => {
-        const params =
-            new URLSearchParams(
-            searchParams.toString()
-            );
+    const safePage = Math.min(
+        Math.max(nextPage, 1),
+        totalPages
+    );
 
+    const params = new URLSearchParams(
+        searchParams.toString()
+    );
+
+    params.set(
+        "page",
+        String(safePage)
+    );
+
+    if (search.trim()) {
         params.set(
-            "page",
-            String(nextPage)
+        "search",
+        search.trim()
         );
+    } else {
+        params.delete("search");
+    }
 
-        if (search.trim()) {
-            params.set(
-            "search",
-            search.trim()
-            );
-        } else {
-            params.delete("search");
+    router.replace(
+        `${pathname}?${params.toString()}`,
+        {
+        scroll: false,
         }
-
-        router.replace(
-            `${pathname}?${params.toString()}`
-        );
-        };
-
-
+    );
+    };
     
   return (
      <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48">
             
             <div className="flex justify-between">
                 <ModuleHeader
-                title="Payments &"
+                title="Agent Credits"
                 subtitle="Withdrawals"
                 />
                 <div className="w-full flex justify-end">
@@ -335,315 +262,7 @@ export default function Transaction() {
     
                 </div>
             </div>
-            
-            <AppsTab
-              tabs={TABS}
-              activeTab={activeTab}
-              changeTab={(key) =>
-                changeTab(key as TABKEY)
-              }
-            />
 
-            {activeTab === "PAYMENTS" && (
-
-
-                <div className="bg-white shadow-sm rounded-xl overflow-hidden">
-
-                    <table className="w-full border-collapse">
-
-                    <thead className="bg-white text-tertiaryHeader">
-
-                        <tr className="text-neutralPrimary">
-
-                        <th className="text-left px-custom-24 py-5 font-semibold">
-                            QR-ID
-                        </th>
-
-                        <th className="text-left px-custom-24 py-5 font-semibold">
-                            Fullname
-                        </th>
-
-                        <th className="text-left px-custom-24 py-5 font-semibold">
-                            Amount
-                        </th>
-
-                        <th className="text-left px-custom-24 py-5 font-semibold">
-                            Status
-                        </th>
-
-                        <th className="text-left px-custom-24 py-5 font-semibold">
-                            Actions
-                        </th>
-
-                        </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                        {isPaymentLoading && (
-                        <tr>
-
-                            <td
-                            colSpan={5}
-                            className="text-center py-10"
-                            >
-                            Loading...
-                            </td>
-
-                        </tr>
-                        )}
-
-                
-                        {!isPaymentLoading &&
-                        paymentData?.data.length === 0 && (
-                            <tr>
-
-                            <td
-                                colSpan={5}
-                                className="
-                                text-center
-                                py-10
-                                text-neutralPrimary
-                                "
-                            >
-                                NO {activeTab} AGENTS FOUND.
-                            </td>
-
-                            </tr>
-                        )}
-
-
-                        {!isPaymentLoading &&
-                        paymentData?.data.map(
-                            (payment) => (
-
-                            <tr
-                                key={payment.id}
-                                className="
-                                text-neutralPrimary
-                                text-body
-                                odd:bg-neutralLight
-                                "
-                            >
-
-                        
-                                <td className="text-left px-6 py-4 font-semibold">
-
-                                <QRCode
-                                    value={payment.agent.agentCode || ""}
-                                    size={50}
-                                />
-                                
-                                
-                                </td>
-
-                            
-                                <td className="text-left px-6 py-4 font-semibold capitalize">
-
-                                {payment.agent.fullName}
-
-                                </td>
-
-                            
-                                <td className="text-left px-6 py-4 font-semibold">
-
-                                {payment.amount}
-
-                                </td>
-
-                                
-                                <td className="text-left px-6 py-4">
-                                <span
-                                    className={`
-                                    inline-flex items-center justify-center
-                                    w-fit
-                                    rounded-md
-                                    px-custom-16 py-1
-                                    text-xs font-semibold text-white
-                                    ${
-                                        payment.status === "PAID"
-                                        ? "bg-positive"
-                                        : payment.status === "EXPIRED"
-                                        ? "bg-negative"
-                                        : payment.status === "FAILED"
-                                        ? "bg-darkPrimary"
-                                        : payment.status === "CANCELLED"
-                                        ? "bg-mainPrimary"
-                                        
-                                        : "bg-secondary"
-
-
-
-                                    }
-                                    `}
-                                >
-                                    {payment.status}
-                                </span>
-                                </td>
-
-                                <td className="text-left px-6 py-4">
-
-                                <div className="flex items-center gap-3">
-
-
-                                    <button
-                                        title="View Details"
-                                        onClick={() =>
-                                            handleViewPaymentDetails(payment)
-                                        }
-                                        className="
-                                            px-custom-16
-                                            py-custom-8
-                                            rounded-xl
-                                            bg-lightPrimary
-                                            hover:bg-mainPrimary
-                                            cursor-pointer
-                                            text-white
-                                            inline-flex
-                                            items-center
-                                            gap-custom-8
-                                            text-xs
-                                            font-semibold
-                                            transition
-                                        "
-                                        >
-                                        <Inspect size={20}/> View Details
-                                    </button>
-
-
-                                </div>
-
-                                </td>
-
-                            </tr>
-                            )
-                        )}
-
-                    </tbody>
-
-                    </table>
-
-                    <div
-                    className="
-                        flex
-                        items-center
-                        justify-between
-                        px-custom-32
-                        py-4
-                        border-t
-                        border-neutralMed
-                        bg-white
-                    "
-                    >
-
-                    <div className="text-sm text-neutralPrimary">
-
-                        Showing page{" "}
-
-                        <span className="font-semibold">
-                        {paymentData?.page || 1}
-                        </span>{" "}
-
-                        of{" "}
-
-                        <span className="font-semibold">
-                        {paymentData?.totalPages || 1}
-                        </span>
-
-                    </div>
-
-                    <div className="flex items-center gap-3">
-
-                        <button
-                        disabled={page === 1}
-                        onClick={() =>
-                            updateQueryParams(
-                            page - 1
-                            )
-                        }
-                        className="
-                            inline-flex
-                            items-center
-                            gap-2
-                            px-4
-                            py-2
-                            rounded-lg
-                            border
-                            border-neutralMed
-                            hover:bg-neutralLight
-                            disabled:opacity-50
-                            disabled:cursor-not-allowed
-                            transition
-                        "
-                        >
-
-                        <ChevronLeft className="w-4 h-4" />
-
-                        Previous
-
-                        </button>
-
-                        <div
-                        className="
-                            w-full
-                            px-custom-16
-                            py-1
-                            rounded-lg
-                            bg-mainPrimary
-                            text-white
-                            flex
-                            items-center
-                            justify-center
-                            font-semibold
-                        "
-                        >
-                        {page}
-                        </div>
-
-                        <button
-                        disabled={
-                            page ===
-                            paymentData?.totalPages
-                        }
-                        onClick={() =>
-                            updateQueryParams(
-                            page + 1
-                            )
-                        }
-                        className="
-                            inline-flex
-                            items-center
-                            gap-2
-                            px-4
-                            py-2
-                            rounded-lg
-                            border
-                            border-neutralMed
-                            hover:bg-neutralLight
-                            disabled:opacity-50
-                            disabled:cursor-not-allowed
-                            transition
-                        "
-                        >
-
-                        Next
-
-                        <ChevronRight className="w-4 h-4" />
-
-                        </button>
-
-                    </div>
-
-                    </div>
-
-                </div>
-
-
-
-                )}
-
-                {activeTab === "WITHDRAW" && (
 
                 <div className="bg-white shadow-sm rounded-xl overflow-hidden">
 
@@ -709,7 +328,7 @@ export default function Transaction() {
                                 text-neutralPrimary
                                 "
                             >
-                                NO {activeTab} AGENTS FOUND.
+                                NO AGENTS WITHRAWAL FOUND.
                             </td>
 
                             </tr>
@@ -864,11 +483,9 @@ export default function Transaction() {
                     <div className="flex items-center gap-3">
 
                         <button
-                        disabled={page === 1}
+                        disabled={page <= 1}
                         onClick={() =>
-                            updateQueryParams(
-                            page - 1
-                            )
+                            updateQueryParams(page - 1)
                         }
                         className="
                             inline-flex
@@ -911,13 +528,11 @@ export default function Transaction() {
 
                         <button
                         disabled={
-                            page ===
-                            withdrawalData?.totalPages
+                            page >=
+                            (withdrawalData?.totalPages ?? 1)
                         }
                         onClick={() =>
-                            updateQueryParams(
-                            page + 1
-                            )
+                            updateQueryParams(page + 1)
                         }
                         className="
                             inline-flex
@@ -947,206 +562,7 @@ export default function Transaction() {
 
                 </div>
 
-                )}
-
-
-                {openPaymentDetails && selectedPayment && (
-                    <MainModal
-                        size="lg"
-                        onClose={handleClosePaymentDetails}
-                    >
-                        <div className="w-full flex flex-col gap-y-custom-24 p-custom-32">
-                            <div className="border-b border-neutralMed pb-custom-16">
-                                <h2 className="text-mdHeader font-bold text-mainPrimary">
-                                Payment Details
-                                </h2>
-
-                                <p className="text-sm text-neutralPrimary">
-                                Reactivation payment transaction information.
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-custom-16">
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Agent Name
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary capitalize">
-                                        {selectedPayment.agent.fullName}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Agent Code
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.agent.agentCode}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Agent Level
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.agent.level}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Amount
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        ₱{Number(selectedPayment.amount).toLocaleString()}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Currency
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.currency}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Provider
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.provider}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Status
-                                    </p>
-                                    <span
-                                        className={`
-                                        inline-flex
-                                        w-fit
-                                        rounded-md
-                                        px-custom-16
-                                        py-1
-                                        text-xs
-                                        font-semibold
-                                        text-white
-                                        ${
-                                            selectedPayment.status === "PAID"
-                                            ? "bg-positive"
-                                            : selectedPayment.status === "EXPIRED"
-                                            ? "bg-negative"
-                                            : selectedPayment.status === "FAILED"
-                                            ? "bg-darkPrimary"
-                                            : selectedPayment.status === "CANCELLED"
-                                            ? "bg-mainPrimary"
-                                            : "bg-secondary"
-                                        }
-                                        `}
-                                    >
-                                        {selectedPayment.status}
-                                    </span>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Request Status
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.request.status}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Xendit Fee
-                                    </p>
-                                    <h3 className="font-bold text-negative">
-                                        ₱{Number(selectedPayment.companyExpenseTotal ?? 0).toLocaleString()}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Company Net Collection
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        ₱
-                                        {(
-                                        Number(selectedPayment.amount) -
-                                        Number(selectedPayment.companyExpenseTotal ?? 0)
-                                        ).toLocaleString()}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16 md:col-span-2">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Xendit Reference ID
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary break-all">
-                                        {selectedPayment.xenditReferenceId ?? "-"}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16 md:col-span-2">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Xendit Payment Session ID
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary break-all">
-                                        {selectedPayment.xenditPaymentSessionId ?? "-"}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Created At
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {new Date(selectedPayment.createdAt).toLocaleString()}
-                                    </h3>
-                                </div>
-
-                                <div className="bg-neutralLight rounded-xl p-custom-16">
-                                    <p className="text-xs text-neutralPrimary">
-                                        Paid At
-                                    </p>
-                                    <h3 className="font-bold text-mainPrimary">
-                                        {selectedPayment.paidAt
-                                        ? new Date(selectedPayment.paidAt).toLocaleString()
-                                        : "-"}
-                                    </h3>
-                                </div>
-                            </div>
-
-                            
-
-                            {selectedPayment.checkoutUrl && (
-                                <a
-                                href={selectedPayment.checkoutUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="
-                                    w-full
-                                    text-center
-                                    bg-lightPrimary
-                                    hover:bg-mainPrimary
-                                    text-white
-                                    py-custom-8
-                                    rounded-xl
-                                    font-semibold
-                                    text-sm
-                                "
-                                >
-                                Open Checkout URL
-                                </a>
-                            )}
-                        </div>
-                    </MainModal>
-                    )}
+                {/* )} */}
 
 
                     {openWithdrawDetails && selectedWithdraw && (

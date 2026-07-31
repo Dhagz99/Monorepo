@@ -1,4 +1,4 @@
-import { CreditLedgerType, CreditSource, WithdrawalStatus, CompanyExpenseType, CompanyExpenseSource, } from "../../../generated/prisma";
+import { CreditLedgerType, CreditSource, WithdrawalStatus, CompanyExpenseType, CompanyExpenseSource, PayoutChannel, } from "../../../generated/prisma";
 import prisma from "../../lib/prisma";
 import { getAgentAvailableCredit, syncAgentCreditScore } from "../../services/creditLedger/creditLedger.service";
 import { createXenditDisbursement } from "../../services/xendit/xendit.service";
@@ -6,11 +6,7 @@ import { emitAdminWithdrawUpdated } from "../../socket/socketEmitter";
 
 
 
-const XENDIT_PAYOUT_FEE_RATE = 0.023;
 
-const calculateCompanyPayoutFee = (amount: number) => {
-  return Number((amount * XENDIT_PAYOUT_FEE_RATE).toFixed(2));
-};
 
 const ensureAdmin = async (adminId: number) => {
   const admin = await prisma.user.findUnique({
@@ -24,13 +20,19 @@ const ensureAdmin = async (adminId: number) => {
     },
   });
 
-  const isAdmin = admin?.roles.some(
-    (userRole) => userRole.role.name === "ADMIN"
+  if (!admin) {
+    throw new Error("User not found.");
+  }
+
+  const isAdmin = admin.roles.some(({ role }) =>
+    ["ADMIN", "OPERATIONS"].includes(role.name)
   );
 
   if (!isAdmin) {
-    throw new Error("Only admin can perform this action.");
+    throw new Error("Only ADMIN or OPERATIONS can perform this action.");
   }
+
+  return admin;
 };
 
 // export const createMyWithdrawalRequestService = async (
@@ -205,7 +207,7 @@ export const createMyWithdrawalRequestService = async (
           data: {
             agentId,
             amount: payload.amount,
-            payoutChannel: "GCASH",
+            payoutChannel: PayoutChannel.GCASH,
             accountName: payload.accountName.trim(),
             accountNumber: payload.accountNumber.trim(),
             status: WithdrawalStatus.PENDING,
@@ -249,6 +251,7 @@ const mapPayoutChannelToXenditCode = (channel: string) => {
 
   return channel;
 };
+
 
 export const approveWithdrawalRequestService = async (
   adminId: number,
@@ -508,262 +511,262 @@ export const approveWithdrawalRequestService = async (
 //     status: nextStatus,
 //   };
 // };
-export const handleXenditDisbursementWebhook = async (
-  payload: any
-) => {
-  const data = payload.data ?? payload;
+// export const handleXenditDisbursementWebhook = async (
+//   payload: any
+// ) => {
+//   const data = payload.data ?? payload;
 
-  const externalId =
-    data.reference_id ?? data.external_id;
+//   const externalId =
+//     data.reference_id ?? data.external_id;
 
-  const status = data.status;
+//   const status = data.status;
 
-  if (!externalId) {
-    throw new Error("Missing payout reference_id.");
-  }
+//   if (!externalId) {
+//     throw new Error("Missing payout reference_id.");
+//   }
 
-  const withdrawalIdFromReference =
-    externalId.startsWith("withdrawal_retry_")
-      ? externalId
-          .replace("withdrawal_retry_", "")
-          .split("_")[0]
-      : externalId.startsWith("withdrawal_")
-      ? externalId.replace("withdrawal_", "")
-      : null;
+//   const withdrawalIdFromReference =
+//     externalId.startsWith("withdrawal_retry_")
+//       ? externalId
+//           .replace("withdrawal_retry_", "")
+//           .split("_")[0]
+//       : externalId.startsWith("withdrawal_")
+//       ? externalId.replace("withdrawal_", "")
+//       : null;
 
-  const withdrawal =
-    await prisma.creditWithdrawalRequest.findFirst({
-      where: {
-        OR: [
-          {
-            xenditExternalId: externalId,
-          },
-          ...(withdrawalIdFromReference
-            ? [
-                {
-                  id: withdrawalIdFromReference,
-                },
-              ]
-            : []),
-        ],
-      },
-    });
+//   const withdrawal =
+//     await prisma.creditWithdrawalRequest.findFirst({
+//       where: {
+//         OR: [
+//           {
+//             xenditExternalId: externalId,
+//           },
+//           ...(withdrawalIdFromReference
+//             ? [
+//                 {
+//                   id: withdrawalIdFromReference,
+//                 },
+//               ]
+//             : []),
+//         ],
+//       },
+//     });
 
-  if (!withdrawal) {
-    throw new Error("Withdrawal request not found.");
-  }
+//   if (!withdrawal) {
+//     throw new Error("Withdrawal request not found.");
+//   }
 
-  if (
-    withdrawal.status === WithdrawalStatus.COMPLETED ||
-    withdrawal.status === WithdrawalStatus.FAILED ||
-    withdrawal.status === WithdrawalStatus.REJECTED
-  ) {
-    return {
-      alreadyProcessed: true,
-      withdrawalId: withdrawal.id,
-      status: withdrawal.status,
-    };
-  }
+//   if (
+//     withdrawal.status === WithdrawalStatus.COMPLETED ||
+//     withdrawal.status === WithdrawalStatus.FAILED ||
+//     withdrawal.status === WithdrawalStatus.REJECTED
+//   ) {
+//     return {
+//       alreadyProcessed: true,
+//       withdrawalId: withdrawal.id,
+//       status: withdrawal.status,
+//     };
+//   }
 
-  const nextStatus =
-    status === "SUCCEEDED" || status === "COMPLETED"
-      ? WithdrawalStatus.COMPLETED
-      : status === "FAILED"
-      ? WithdrawalStatus.FAILED
-      : WithdrawalStatus.PROCESSING;
+//   const nextStatus =
+//     status === "SUCCEEDED" || status === "COMPLETED"
+//       ? WithdrawalStatus.COMPLETED
+//       : status === "FAILED"
+//       ? WithdrawalStatus.FAILED
+//       : WithdrawalStatus.PROCESSING;
 
-  let updatedWithdrawal = null;
+//   let updatedWithdrawal = null;
 
-  if (nextStatus === WithdrawalStatus.COMPLETED) {
-    updatedWithdrawal = await prisma.$transaction(async (tx) => {
-      const updated =
-        await tx.creditWithdrawalRequest.update({
-          where: {
-            id: withdrawal.id,
-          },
-          data: {
-            status: WithdrawalStatus.COMPLETED,
-            xenditExternalId:
-              withdrawal.xenditExternalId ?? externalId,
-            xenditDisbursementId:
-              data.id ?? withdrawal.xenditDisbursementId,
-            failureCode: null,
-            failureMessage: null,
-            completedAt: new Date(),
-            rawWebhook: payload,
-          },
-        });
+//   if (nextStatus === WithdrawalStatus.COMPLETED) {
+//     updatedWithdrawal = await prisma.$transaction(async (tx) => {
+//       const updated =
+//         await tx.creditWithdrawalRequest.update({
+//           where: {
+//             id: withdrawal.id,
+//           },
+//           data: {
+//             status: WithdrawalStatus.COMPLETED,
+//             xenditExternalId:
+//               withdrawal.xenditExternalId ?? externalId,
+//             xenditDisbursementId:
+//               data.id ?? withdrawal.xenditDisbursementId,
+//             failureCode: null,
+//             failureMessage: null,
+//             completedAt: new Date(),
+//             rawWebhook: payload,
+//           },
+//         });
 
-      await tx.agentWithdrawalLedger.create({
-        data: {
-          agentId: withdrawal.agentId,
-          type: CreditLedgerType.RELEASE,
-          amount: withdrawal.amount,
-          sourceType: CreditSource.WITHDRAWAL,
-          sourceId: withdrawal.id,
-          description:
-            "Withdrawal reserve released after completion",
-        },
-      });
+//       await tx.agentWithdrawalLedger.create({
+//         data: {
+//           agentId: withdrawal.agentId,
+//           type: CreditLedgerType.RELEASE,
+//           amount: withdrawal.amount,
+//           sourceType: CreditSource.WITHDRAWAL,
+//           sourceId: withdrawal.id,
+//           description:
+//             "Withdrawal reserve released after completion",
+//         },
+//       });
 
-      await tx.agentWithdrawalLedger.create({
-        data: {
-          agentId: withdrawal.agentId,
-          type: CreditLedgerType.DEBIT,
-          amount: withdrawal.amount,
-          sourceType: CreditSource.WITHDRAWAL,
-          sourceId: withdrawal.id,
-          description: "Withdrawal completed",
-        },
-      });
+//       await tx.agentWithdrawalLedger.create({
+//         data: {
+//           agentId: withdrawal.agentId,
+//           type: CreditLedgerType.DEBIT,
+//           amount: withdrawal.amount,
+//           sourceType: CreditSource.WITHDRAWAL,
+//           sourceId: withdrawal.id,
+//           description: "Withdrawal completed",
+//         },
+//       });
 
-      const withdrawalAmount = Number(withdrawal.amount);
-      const companyFee =
-        calculateCompanyPayoutFee(withdrawalAmount);
+//       const withdrawalAmount = Number(withdrawal.amount);
+//       const companyFee =
+//         calculateCompanyPayoutFee(withdrawalAmount);
 
-      const existingExpense =
-        await tx.companyExpenseLog.findFirst({
-          where: {
-            type: CompanyExpenseType.XENDIT_PAYOUT_FEE,
-            sourceType: CompanyExpenseSource.WITHDRAWAL,
-            sourceId: withdrawal.id,
-          },
-        });
+//       const existingExpense =
+//         await tx.companyExpenseLog.findFirst({
+//           where: {
+//             type: CompanyExpenseType.XENDIT_PAYOUT_FEE,
+//             sourceType: CompanyExpenseSource.WITHDRAWAL,
+//             sourceId: withdrawal.id,
+//           },
+//         });
 
-      if (!existingExpense) {
-        await tx.companyExpenseLog.create({
-          data: {
-            type: CompanyExpenseType.XENDIT_PAYOUT_FEE,
-            sourceType: CompanyExpenseSource.WITHDRAWAL,
-            sourceId: withdrawal.id,
-            amount: companyFee,
-            rate: XENDIT_PAYOUT_FEE_RATE,
-            description:
-              `Xendit payout fee for withdrawal ${withdrawal.id}`,
-            createdBy: withdrawal.approvedBy,
-            rawData: {
-              withdrawalAmount,
-              agentId: withdrawal.agentId,
-              xenditExternalId: externalId,
-              xenditDisbursementId:
-                data.id ?? withdrawal.xenditDisbursementId,
-            },
-          },
-        });
-      }
+//       if (!existingExpense) {
+//         await tx.companyExpenseLog.create({
+//           data: {
+//             type: CompanyExpenseType.XENDIT_PAYOUT_FEE,
+//             sourceType: CompanyExpenseSource.WITHDRAWAL,
+//             sourceId: withdrawal.id,
+//             amount: companyFee,
+//             rate: XENDIT_PAYOUT_FEE_RATE,
+//             description:
+//               `Xendit payout fee for withdrawal ${withdrawal.id}`,
+//             createdBy: withdrawal.approvedBy,
+//             rawData: {
+//               withdrawalAmount,
+//               agentId: withdrawal.agentId,
+//               xenditExternalId: externalId,
+//               xenditDisbursementId:
+//                 data.id ?? withdrawal.xenditDisbursementId,
+//             },
+//           },
+//         });
+//       }
 
-      await syncAgentCreditScore(
-        tx,
-        withdrawal.agentId
-      );
+//       await syncAgentCreditScore(
+//         tx,
+//         withdrawal.agentId
+//       );
 
-      return updated;
-    });
+//       return updated;
+//     });
 
-    emitAdminWithdrawUpdated({
-      withdrawId: updatedWithdrawal.id,
-      agentId: updatedWithdrawal.agentId,
-      status: updatedWithdrawal.status,
-      amount: Number(updatedWithdrawal.amount),
-      payoutChannel: updatedWithdrawal.payoutChannel,
-      createdAt: updatedWithdrawal.updatedAt,
-    });
+//     emitAdminWithdrawUpdated({
+//       withdrawId: updatedWithdrawal.id,
+//       agentId: updatedWithdrawal.agentId,
+//       status: updatedWithdrawal.status,
+//       amount: Number(updatedWithdrawal.amount),
+//       payoutChannel: updatedWithdrawal.payoutChannel,
+//       createdAt: updatedWithdrawal.updatedAt,
+//     });
 
-    return {
-      success: true,
-      withdrawalId: updatedWithdrawal.id,
-      status: updatedWithdrawal.status,
-    };
-  }
+//     return {
+//       success: true,
+//       withdrawalId: updatedWithdrawal.id,
+//       status: updatedWithdrawal.status,
+//     };
+//   }
 
-  if (nextStatus === WithdrawalStatus.FAILED) {
-    updatedWithdrawal = await prisma.$transaction(async (tx) => {
-      const updated =
-        await tx.creditWithdrawalRequest.update({
-          where: {
-            id: withdrawal.id,
-          },
-          data: {
-            status: WithdrawalStatus.FAILED,
-            xenditExternalId:
-              withdrawal.xenditExternalId ?? externalId,
-            xenditDisbursementId:
-              data.id ?? withdrawal.xenditDisbursementId,
-            failureCode: data.failure_code ?? null,
-            failureMessage:
-              data.failure_message ??
-              data.failure_reason ??
-              "Xendit payout failed.",
-            rawWebhook: payload,
-          },
-        });
+//   if (nextStatus === WithdrawalStatus.FAILED) {
+//     updatedWithdrawal = await prisma.$transaction(async (tx) => {
+//       const updated =
+//         await tx.creditWithdrawalRequest.update({
+//           where: {
+//             id: withdrawal.id,
+//           },
+//           data: {
+//             status: WithdrawalStatus.FAILED,
+//             xenditExternalId:
+//               withdrawal.xenditExternalId ?? externalId,
+//             xenditDisbursementId:
+//               data.id ?? withdrawal.xenditDisbursementId,
+//             failureCode: data.failure_code ?? null,
+//             failureMessage:
+//               data.failure_message ??
+//               data.failure_reason ??
+//               "Xendit payout failed.",
+//             rawWebhook: payload,
+//           },
+//         });
 
-      await tx.agentWithdrawalLedger.create({
-        data: {
-          agentId: withdrawal.agentId,
-          type: CreditLedgerType.RELEASE,
-          amount: withdrawal.amount,
-          sourceType: CreditSource.WITHDRAWAL,
-          sourceId: withdrawal.id,
-          description:
-            "Withdrawal reserve released after failure",
-        },
-      });
+//       await tx.agentWithdrawalLedger.create({
+//         data: {
+//           agentId: withdrawal.agentId,
+//           type: CreditLedgerType.RELEASE,
+//           amount: withdrawal.amount,
+//           sourceType: CreditSource.WITHDRAWAL,
+//           sourceId: withdrawal.id,
+//           description:
+//             "Withdrawal reserve released after failure",
+//         },
+//       });
 
-      await syncAgentCreditScore(
-        tx,
-        withdrawal.agentId
-      );
+//       await syncAgentCreditScore(
+//         tx,
+//         withdrawal.agentId
+//       );
 
-      return updated;
-    });
+//       return updated;
+//     });
 
-    emitAdminWithdrawUpdated({
-      withdrawId: updatedWithdrawal.id,
-      agentId: updatedWithdrawal.agentId,
-      status: updatedWithdrawal.status,
-      amount: Number(updatedWithdrawal.amount),
-      payoutChannel: updatedWithdrawal.payoutChannel,
-      createdAt: updatedWithdrawal.updatedAt,
-    });
+//     emitAdminWithdrawUpdated({
+//       withdrawId: updatedWithdrawal.id,
+//       agentId: updatedWithdrawal.agentId,
+//       status: updatedWithdrawal.status,
+//       amount: Number(updatedWithdrawal.amount),
+//       payoutChannel: updatedWithdrawal.payoutChannel,
+//       createdAt: updatedWithdrawal.updatedAt,
+//     });
 
-    return {
-      success: true,
-      withdrawalId: updatedWithdrawal.id,
-      status: updatedWithdrawal.status,
-    };
-  }
+//     return {
+//       success: true,
+//       withdrawalId: updatedWithdrawal.id,
+//       status: updatedWithdrawal.status,
+//     };
+//   }
 
-  updatedWithdrawal =
-    await prisma.creditWithdrawalRequest.update({
-      where: {
-        id: withdrawal.id,
-      },
-      data: {
-        status: WithdrawalStatus.PROCESSING,
-        xenditExternalId:
-          withdrawal.xenditExternalId ?? externalId,
-        xenditDisbursementId:
-          data.id ?? withdrawal.xenditDisbursementId,
-        rawWebhook: payload,
-      },
-    });
+//   updatedWithdrawal =
+//     await prisma.creditWithdrawalRequest.update({
+//       where: {
+//         id: withdrawal.id,
+//       },
+//       data: {
+//         status: WithdrawalStatus.PROCESSING,
+//         xenditExternalId:
+//           withdrawal.xenditExternalId ?? externalId,
+//         xenditDisbursementId:
+//           data.id ?? withdrawal.xenditDisbursementId,
+//         rawWebhook: payload,
+//       },
+//     });
 
-  emitAdminWithdrawUpdated({
-    withdrawId: updatedWithdrawal.id,
-    agentId: updatedWithdrawal.agentId,
-    status: updatedWithdrawal.status,
-    amount: Number(updatedWithdrawal.amount),
-    payoutChannel: updatedWithdrawal.payoutChannel,
-    createdAt: updatedWithdrawal.updatedAt,
-  });
+//   emitAdminWithdrawUpdated({
+//     withdrawId: updatedWithdrawal.id,
+//     agentId: updatedWithdrawal.agentId,
+//     status: updatedWithdrawal.status,
+//     amount: Number(updatedWithdrawal.amount),
+//     payoutChannel: updatedWithdrawal.payoutChannel,
+//     createdAt: updatedWithdrawal.updatedAt,
+//   });
 
-  return {
-    success: true,
-    withdrawalId: updatedWithdrawal.id,
-    status: updatedWithdrawal.status,
-  };
-};
+//   return {
+//     success: true,
+//     withdrawalId: updatedWithdrawal.id,
+//     status: updatedWithdrawal.status,
+//   };
+// };
 
 export const retryWithdrawalRequestService = async (
   adminId: number,

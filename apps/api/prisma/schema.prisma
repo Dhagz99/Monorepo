@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
 model User{
@@ -35,6 +35,10 @@ model User{
   agent Agent? @relation(fields: [agentId], references: [id])
 
   companyExpenseLog CompanyExpenseLog[]
+
+  convenienceFee ConvenienceFee[]
+
+  reactivationRequests AgentReactivationRequest[]
 
   processedCommissionScans CommissionScan[]@relation("ProcessedCommissionScan")
 
@@ -134,6 +138,7 @@ enum MaintenanceStatus {
 enum ReactivationRequestStatus {
   PENDING
   APPROVED_WAITING_PAYMENT
+  APPROVED_WAITING_CONFIRMATION
   PAYMENT_PENDING
   PROBATION
   COMPLETED
@@ -216,6 +221,10 @@ enum CreditSource {
   COMMISSION
   WITHDRAWAL
 }
+enum PayoutPurpose {
+  WITHDRAWAL
+  DIRECT_COMMISSION
+}
 
 enum CompanyExpenseType {
   XENDIT_PAYOUT_FEE
@@ -225,6 +234,11 @@ enum CompanyExpenseType {
 enum CompanyExpenseSource {
   WITHDRAWAL
   REACTIVATION_PAYMENT
+}
+
+enum PayoutChannel {
+  GCASH
+  CHECK
 }
 
 model Company {
@@ -266,11 +280,13 @@ model Branch {
 
   company         Company? @relation(fields: [companyId],references: [companyCode])
 
-  agents         AgentBranch[]
+  // agents         AgentBranch[]
 
   users User[]
 
   commissionScans CommissionScan[]
+
+  reactivationRequests AgentReactivationRequest[]
 
   createdAt      DateTime  @default(now())
 
@@ -303,6 +319,8 @@ model Agent {
 
   telephone          String?  @db.VarChar(20)
 
+  SecondaryTel       String?  @db.VarChar(20)
+
   creditScore        Int      @default(0)
 
   consecutiveMonthsActive Int @default(0)
@@ -321,7 +339,7 @@ model Agent {
 
   downlines          Agent[]@relation("AgentHierarchy")
 
-  branches           AgentBranch[]
+  // branches           AgentBranch[]
 
   user User?
 
@@ -422,6 +440,12 @@ model AgentReactivationRequest {
   agentId String
   agent   Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
+  submittedByUserId Int?
+  submittedByUser   User? @relation(fields: [submittedByUserId],references: [id])
+
+  submittedBranchCode String? 
+  submittedBranch Branch? @relation(fields: [submittedBranchCode],references: [branchCode])
+
   requestType ReactivationType
 
   status ReactivationRequestStatus @default(PENDING)
@@ -502,19 +526,60 @@ model AgentReactivationPayment {
   @@map("agent_reactivation_payments")
 }
 
+// model CreditWithdrawalRequest {
+//   id                   String   @id @default(uuid())
+//   agentId              String
+//   agent                Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+//   amount               Decimal  @db.Decimal(12, 2)
+//   payoutChannel        PayoutChannel @default(CHECK)
+//   accountName          String
+//   accountNumber        String
+
+//   status               WithdrawalStatus @default(PENDING)
+
+//   xenditExternalId     String?  @unique
+//   xenditDisbursementId String?
+
+//   failureCode          String?
+//   failureMessage       String?
+
+//   rawResponse          Json?
+//   rawWebhook           Json?
+
+//   requestedAt          DateTime @default(now())
+//   approvedBy           Int?
+//   approvedAt           DateTime?
+//   completedAt          DateTime?
+
+//   remarks              String?
+//   createdAt            DateTime @default(now())
+//   updatedAt            DateTime @updatedAt
+// }
+
 model CreditWithdrawalRequest {
   id                   String   @id @default(uuid())
+
   agentId              String
-  agent                Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent                Agent    @relation(fields: [agentId],references: [id],onDelete: Cascade)
+
+  purpose              PayoutPurpose @default(WITHDRAWAL)
+
+  commissionScanId String?
+  commissionScan   CommissionScan? @relation(fields: [commissionScanId],references: [id],onDelete: SetNull)
+
+  commissionTransactionId String?
+  commissionTransaction   CommissionTransaction? @relation(fields: [commissionTransactionId],references: [id],onDelete: SetNull)
 
   amount               Decimal  @db.Decimal(12, 2)
-  payoutChannel        String
+  payoutChannel        PayoutChannel @default(CHECK)
+
   accountName          String
   accountNumber        String
 
   status               WithdrawalStatus @default(PENDING)
 
-  xenditExternalId     String?  @unique
+  xenditExternalId     String? @unique
   xenditDisbursementId String?
 
   failureCode          String?
@@ -531,6 +596,9 @@ model CreditWithdrawalRequest {
   remarks              String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  @@index([agentId, status])
+  @@index([commissionScanId])
 }
 
 model AgentWithdrawalLedger {
@@ -651,37 +719,37 @@ model AgentNotification {
 }
 
 
-model AgentBranch {
-  id            String    @id @default(uuid())
+// model AgentBranch {
+//   id            String    @id @default(uuid())
 
-  agentId       String
+//   agentId       String
 
-  branchId      String
-
-
-  agent         Agent @relation(fields: [agentId],references: [id],   onDelete: Cascade)
-
-  branch        Branch @relation(fields: [branchId],references: [branchCode])
+//   branchId      String
 
 
-  isActive      Boolean  @default(true)
+//   agent         Agent @relation(fields: [agentId],references: [id],   onDelete: Cascade)
 
-  assignedAt    DateTime @default(now())
-
-
-  createdAt     DateTime @default(now())
-
-  updatedAt     DateTime @updatedAt
+//   branch        Branch @relation(fields: [branchId],references: [branchCode])
 
 
-  @@unique([agentId, branchId])
+//   isActive      Boolean  @default(true)
 
-  @@index([agentId])
+//   assignedAt    DateTime @default(now())
 
-  @@index([branchId])
 
-  @@map("agent_branches")
-}
+//   createdAt     DateTime @default(now())
+
+//   updatedAt     DateTime @updatedAt
+
+
+//   @@unique([agentId, branchId])
+
+//   @@index([agentId])
+
+//   @@index([branchId])
+
+//   @@map("agent_branches")
+// }
 
 enum FormulaType {
   FORMULA2
@@ -790,7 +858,13 @@ model CommissionScan {
 
   createdAt DateTime @default(now())
 
+  payoutChannel   PayoutChannel @default(CHECK)
+
+  checkNumber String?
+
   commissionTransactions CommissionTransaction[]
+
+  payoutRequests CreditWithdrawalRequest[]
 
   @@index([clientId])
   @@index([claimedByAgentId])
@@ -828,6 +902,8 @@ model CommissionTransaction {
 
   commissionType      CommissionType
 
+  payoutRequests CreditWithdrawalRequest[]
+
 
   saleAmount          Decimal @db.Decimal(12,2)
 
@@ -857,6 +933,31 @@ model CommissionTransaction {
   @@map("commission_transactions")
 }
 
+model ConvenienceFee {
+  id String @id @default(uuid())
+
+  type CompanyExpenseType
+  sourceType CompanyExpenseSource
+  sourceId String?
+
+  amount Decimal @db.Decimal(12, 2)
+  rate Decimal? @db.Decimal(5, 4)
+
+  description String?
+
+  createdBy Int?
+  user User? @relation(fields: [createdBy], references: [id])
+
+  rawData Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([createdAt])
+}
 
 model CompanyExpenseLog {
   id String @id @default(uuid())

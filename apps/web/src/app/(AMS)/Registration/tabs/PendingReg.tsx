@@ -153,9 +153,6 @@ export default function PendingRegistration() {
                 Level
               </th>
 
-              <th className="text-left px-custom-24 py-5 font-semibold">
-                Branch
-              </th>
 
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Actions
@@ -234,40 +231,6 @@ export default function PendingRegistration() {
                     <td className="text-left px-6 py-4 font-semibold">
 
                       {agent.level}
-
-                    </td>
-
-                    <td className="text-left px-6 py-4">
-
-                    <div className="flex flex-wrap gap-2">
-
-                        {agent.branches.length > 0 ? (
-
-                        agent.branches.map(
-                            (item) => (
-
-                            <span
-                                key={
-                                item.branch.branchCode
-                                }
-                                className="text-left px-custom-16 py-custom-8 font-semibold rounded-full text-xs bg-positive text-white"
-                            >
-                                {
-                                item.branch.companyName
-                                }
-                            </span>
-                            )
-                        )
-
-                        ) : (
-
-                        <span>
-                            No Branch
-                        </span>
-
-                        )}
-
-                    </div>
 
                     </td>
 

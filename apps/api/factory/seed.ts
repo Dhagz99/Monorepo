@@ -95,6 +95,7 @@ async function main() {
         "AGENT_VIEW",
         "AGENT_CREATE",
         "AGENT_UPDATE",
+        "TRANSACTION_VIEW",
         "BRANCH_VIEW",
       ],
     },

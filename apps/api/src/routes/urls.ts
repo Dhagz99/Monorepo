@@ -14,6 +14,7 @@ import { errorMiddleware } from "../middleware/error.middleware";
 import withdrawalRoutes from "../modules/withdraw/withdraw.routes";
 import reportsRoutes from "../modules/reports/reports.routes";
 import permissionRoutes from "../modules/permissions/permissions.routes";
+import webhookRoutes from "../modules/webhooks/webhooks.routes";
 const router = Router();
 
 
@@ -32,6 +33,9 @@ router.use("/reports", reportsRoutes);
 router.use("/permissions", permissionRoutes);
 router.use(errorMiddleware);
 
-
+router.use(
+  "/webhooks",
+  webhookRoutes
+);
 
 export default router;

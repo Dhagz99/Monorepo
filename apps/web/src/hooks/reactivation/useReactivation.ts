@@ -1,4 +1,4 @@
-import { checkReactivationService, getMyReactivationApprovalProgress, getMyReactivationApprovalsService, reviewReactivationApprovalService, selfReactivateService, submitAdminReactivationRequestService } from "@/services/reactivation/reactivation.service";
+import { checkReactivationService, getMyReactivationApprovalProgress, getMyReactivationApprovalsService, getReactivationRequestDetailsService, reviewReactivationApprovalService, selfReactivateService, submitAdminReactivationRequestService, submitReactivationRequestService } from "@/services/reactivation/reactivation.service";
 import { GetMyReactivationApprovalsParams, ReviewReactivationApprovalPayload } from "@repo/shared";
 import {
   useMutation,
@@ -80,7 +80,60 @@ export const useSubmitAdminReactivationRequest =
       },
     });
   };
+  
+export const useSubmitReactivationRequest = () => {
+  const queryClient = useQueryClient();
 
+  return useMutation({
+    mutationFn: (
+      formData: FormData
+    ) =>
+      submitReactivationRequestService(
+        formData
+      ),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["agent-details"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["remaining-sales"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [
+          "admin-reactivation-requests",
+        ],
+      });
+
+      queryClient.invalidateQueries({
+          queryKey: [
+            "my-reactivation-approvals",
+          ],
+        });
+    },
+  });
+};
+
+
+export const useReactivationRequestDetails = (
+  requestId?: string | null
+) => {
+  return useQuery({
+    queryKey: [
+      "reactivation-request-details",
+      requestId,
+    ],
+
+    queryFn: () =>
+      getReactivationRequestDetailsService(
+        requestId as string
+      ),
+
+    enabled: !!requestId,
+  });
+};
 
 export const useMyReactivationApprovals =
   (

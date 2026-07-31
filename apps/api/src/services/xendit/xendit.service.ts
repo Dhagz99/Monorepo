@@ -48,7 +48,28 @@ export const createXenditPaymentSession = async (
   return data;
 };
 
+const normalizePhilippineMobileNumber = (
+  number: string
+) => {
+  const cleaned =
+    number.replace(/\D/g, "");
 
+  if (
+    cleaned.startsWith("09") &&
+    cleaned.length === 11
+  ) {
+    return `63${cleaned.slice(1)}`;
+  }
+
+  if (
+    cleaned.startsWith("639") &&
+    cleaned.length === 12
+  ) {
+    return cleaned;
+  }
+
+  return cleaned;
+};
 
 export const createXenditDisbursement = async (payload: {
   externalId: string;
@@ -66,7 +87,10 @@ export const createXenditDisbursement = async (payload: {
     description: payload.description,
     channel_properties: {
       account_holder_name: payload.accountName,
-      account_number: payload.accountNumber,
+      account_number:
+      normalizePhilippineMobileNumber(
+        payload.accountNumber
+      ),
     },
   };
 

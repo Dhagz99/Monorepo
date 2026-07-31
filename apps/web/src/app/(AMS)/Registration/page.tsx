@@ -39,8 +39,7 @@ import PendingRegistration from "./tabs/PendingReg";
 
 type TABKEY =
   | "registration"
-  | "pending-registration"
-  | "registration-archive";
+  | "pending-registration";
 
 type REGISTRATION_STEP =
   | "personal-details"
@@ -161,12 +160,7 @@ export default function DashboardPage() {
         "Pending Registrations",
       icon: Clock3,
     },
-    {
-      key: "registration-archive",
-      label:
-        "Registration Archive",
-      icon: Archive,
-    },
+ 
   ];
 
 

@@ -36,7 +36,16 @@ export const getAdminWithdrawalsController = async (
   next: NextFunction
 ) => {
   try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized user.",
+      });
+    }
     const result = await getAdminWithdrawalsService({
+      userId,
       page: req.query.page ? Number(req.query.page) : 1,
       limit: req.query.limit ? Number(req.query.limit) : 10,
       search:

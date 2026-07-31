@@ -139,22 +139,9 @@ export default function FinalAssessmentStep({
                 value={
                   watchedValues.agentQrCode || ""
                 }
-                size={180}
+                size={132}
               />
-              {/* ):(
-                  <h1
-                  className="
-                    text-mdHeader
-                    font-bold
-                    text-neutralPrimary
-                    uppercase
-                    tracking-widest
-                  "
-                >
-                  Uncoded
-                </h1>
 
-              )} */}
               <div className="text-center">
 
                 <p className="text-xs text-neutralPrimary">
@@ -223,6 +210,43 @@ export default function FinalAssessmentStep({
 
               </div>
 
+                          {/* LEVEL */}
+              <div
+                className="
+                  bg-neutralLight
+                  rounded-xl
+                  border
+                  border-neutralMed
+                  p-custom-24
+                  flex
+                  flex-col
+                  justify-center
+                  min-h-16
+                "
+              >
+
+                <p className="text-sm text-neutralPrimary">
+                  Assigned Level
+                </p>
+
+                <h2
+                  className="
+                    text-tertiaryHeader
+                    md:text-mdHeader
+                    font-semibold
+                    text-mainPrimary
+                    mt-2
+                  "
+                >
+                  {
+                    watchedValues.selectedAgentLevel ||
+                    "-"
+                  }
+                </h2>
+
+              </div>
+
+
               {/* GENDER */}
               <div
                 className="
@@ -262,7 +286,6 @@ export default function FinalAssessmentStep({
               {/* DOB */}
               <div
                 className="
-                  md:col-span-2
                   bg-neutralLight
                   rounded-xl
                   border
@@ -311,62 +334,8 @@ export default function FinalAssessmentStep({
             "
           >
 
-            {/* EMAIL */}
-            <div
-              className="
-                bg-neutralLight
-                border
-                border-neutralMed
-                rounded-xl
-                p-custom-16
-              "
-            >
+ 
 
-              <p className="text-sm text-neutralPrimary">
-                Email
-              </p>
-
-              <h2
-                className="
-                  text-tertiaryHeader
-                  font-semibold
-                  text-mainPrimary
-                  mt-2
-                  break-all
-                "
-              >
-                {watchedValues.email || "-"}
-              </h2>
-
-            </div>
-
-            {/* CONTACT */}
-            <div
-              className="
-                bg-neutralLight
-                border
-                border-neutralMed
-                rounded-xl
-                p-custom-16
-              "
-            >
-
-              <p className="text-sm text-neutralPrimary">
-                Contact
-              </p>
-
-              <h2
-                className="
-                  text-tertiaryHeader
-                  font-semibold
-                  text-mainPrimary
-                  mt-2
-                "
-              >
-                {watchedValues.agentTel || "-"}
-              </h2>
-
-            </div>
 
             {/* USERNAME */}
             <div
@@ -398,7 +367,134 @@ export default function FinalAssessmentStep({
 
             </div>
 
+
+
+                        {/* CONTACT */}
+            <div
+              className="
+                xl:col-span-1
+                sm:col-span-2
+                bg-neutralLight
+                border
+                border-neutralMed
+                rounded-xl
+                p-custom-16
+                cols
+              "
+            >
+
+              <p className="text-sm text-neutralPrimary">
+                Primary Contact
+              </p>
+
+              <h2
+                className="
+                  text-tertiaryHeader
+                  font-semibold
+                  text-mainPrimary
+                  mt-2
+                "
+              >
+                {watchedValues.agentTel || "-"}
+              </h2>
+
+            </div>
+            {/* CONTACT */}
+            <div
+              className="
+                xl:col-span-1
+                sm:col-span-2
+                bg-neutralLight
+                border
+                border-neutralMed
+                rounded-xl
+                p-custom-16
+              "
+            >
+
+              <p className="text-sm text-neutralPrimary">
+                Secondary Contact
+              </p>
+
+              <h2
+                className="
+                  text-tertiaryHeader
+                  font-semibold
+                  text-mainPrimary
+                  mt-2
+                "
+              >
+                {watchedValues.agentSecTel || "-"}
+              </h2>
+
+            </div>
+
+
+          
+
+            {/* Address */}
+            <div
+              className="
+                col-span-2
+                bg-neutralLight
+                border
+                border-neutralMed
+                rounded-xl
+                p-custom-16
+              "
+            >
+
+              <p className="text-sm text-neutralPrimary">
+                Address
+              </p>
+
+              <h2
+                className="
+                  text-tertiaryHeader
+                  font-semibold
+                  text-mainPrimary
+                  mt-2
+                "
+              >
+                {watchedValues.agentAdd || "-"}
+              </h2>
+
+            </div>
+
+                         {/* EMAIL */}
+            <div
+              className="
+                xl:col-span-1
+                sm:col-span-2
+                bg-neutralLight
+                border
+                border-neutralMed
+                rounded-xl
+                p-custom-16
+              "
+            >
+
+              <p className="text-sm text-neutralPrimary">
+                Email
+              </p>
+
+              <h2
+                className="
+                  text-tertiaryHeader
+                  font-semibold
+                  text-mainPrimary
+                  mt-2
+                  break-all
+                "
+              >
+                {watchedValues.email || "-"}
+              </h2>
+
+            </div>
+
           </div>
+
+          
 
           {/* UPLINE */}
           {watchedValues.parentAgentId && (
@@ -475,102 +571,6 @@ export default function FinalAssessmentStep({
             </div>
           )}
 
-          {/* BRANCHES + LEVEL */}
-          <div
-            className="
-              grid
-              grid-cols-1
-              md:grid-cols-3
-              gap-custom-24
-            "
-          >
-
-            {/* BRANCHES */}
-            <div
-              className="
-                md:col-span-2
-                bg-neutralLight
-                border
-                border-neutralMed
-                rounded-xl
-                p-custom-16
-                flex
-                flex-col
-                gap-4
-              "
-            >
-
-              <p className="text-sm text-neutralPrimary">
-                Assigned Branches
-              </p>
-
-              <div className="flex flex-wrap gap-3">
-
-                {watchedValues.branches &&
-                watchedValues.branches.length >
-                  0 ? (
-                  watchedValues.branches.map(
-                    (branch) => (
-                      <div
-                        key={
-                          branch.branchCode
-                        }
-                        className="
-                          px-4
-                          py-2
-                          rounded-full
-                          bg-positive
-                          text-white
-                          text-sm
-                          font-medium
-                        "
-                      >
-                        {
-                          branch.companyName
-                        }
-                      </div>
-                    )
-                  )
-                ) : (
-                  <span className="text-neutralPrimary">
-                    -
-                  </span>
-                )}
-
-              </div>
-            </div>
-
-            {/* LEVEL */}
-            <div
-              className="
-                bg-neutralLight
-                border
-                border-neutralMed
-                rounded-xl
-                p-custom-16
-              "
-            >
-
-              <p className="text-sm text-neutralPrimary">
-                Assigned Level
-              </p>
-
-              <h2
-                className="
-                  text-tertiaryHeader
-                  font-semibold
-                  text-mainPrimary
-                  mt-2
-                "
-              >
-                {
-                  watchedValues.selectedAgentLevel
-                }
-              </h2>
-
-            </div>
-
-          </div>
 
         </div>
 

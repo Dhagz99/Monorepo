@@ -16,7 +16,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: "General",
     items: [
       {
-        label: "Client Operations",
+        label: "SSP Operations",
         path: "/",
         icon: Cog,
         permission: "DASHBOARD_ACCESS",
@@ -55,7 +55,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Reactivation Request",
         path: "/Reactivation",
         icon: ClipboardCheck,
-        permission: "REACTIVATION_VIEW",
+        permission: "AGENT_VIEW",
       },
       {
         label: "Agent Reassignment",
@@ -64,7 +64,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         permission: "REASSIGNMENT_VIEW",
       },
       {
-        label: "E-wallet Transaction",
+        label: "Agent Transaction",
         path: "/Transaction",
         icon: CreditCard,
         permission: "TRANSACTION_VIEW",

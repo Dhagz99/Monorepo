@@ -24,7 +24,7 @@ import {
 
 import { useGetClients, useGetCommissionDetails } from "../../hooks/clients/useClients";
 
-import { Client } from "@repo/shared";
+import { Client, EligibleAgentOption } from "@repo/shared";
 
 import MainModal from "@/components/modal/mainModal";
 import ModuleHeader from "@/components/ui/commonUi/page.header";
@@ -33,6 +33,7 @@ import { useCreateCommissionScan, useScannedAgent } from "@/hooks/commission/use
 import QRCode from "react-qr-code";
 import { useAuth } from "@/components/context/UserContext";
 import SweetAlert from "@/components/modal/Swal";
+import { useSearchEligibleAgents } from "@/hooks/general/useGeneral";
 
 /* =========================================
    QR SCANNER
@@ -63,6 +64,10 @@ export default function ClientsPage() {
 
   const { user } = useAuth();
 
+  const branchCode =
+    user?.branch?.branchCode ??
+    null;
+
   const searchParams = useSearchParams();
 
   const initialTab =
@@ -83,12 +88,53 @@ export default function ClientsPage() {
     useState(false);
 
   const [scanMode, setScanMode] =
-    useState<"scan-qr" | "enter-code">(
+    useState<"scan-qr" | "search-agent">(
       "scan-qr"
     );
 
+  const [
+    payoutChannel,
+    setPayoutChannel,
+  ] = useState<"GCASH" | "CHECK">(
+    "GCASH"
+  );
+
+
+  
+  const [selectedPhoneNumber, setSelectedPhoneNumber] =
+  useState("");
+  const [checkNumber, setCheckNumber] =
+  useState("");
+
   const [qrResult, setQrResult] =
     useState("");
+
+  const [
+    isAgentDropdownOpen,
+    setIsAgentDropdownOpen,
+  ] = useState(false);
+  const [
+    agentSearch,
+    setAgentSearch,
+  ] = useState("");
+
+  const [
+    selectedAgent,
+    setSelectedAgent,
+  ] = useState<
+    EligibleAgentOption | null
+  >(null);
+
+  const {
+    data: eligibleAgents = [],
+    isLoading:
+      isSearchingAgents,
+    isFetching:
+      isFetchingAgents,
+  } =
+    useSearchEligibleAgents(
+      agentSearch
+    );
 
   const [search, setSearch] =
     useState("");
@@ -129,7 +175,7 @@ export default function ClientsPage() {
   }[] = [
     {
       key: "daily-client",
-      label: "Daily Clients",
+      label: "Daily SSP Clients",
       icon: Users,
     },
     {
@@ -204,15 +250,12 @@ export default function ClientsPage() {
 
 
   const handleCloseModal = () => {
-
-    // close modal
     setOpenModal(false);
-
-    // clear qr result
     setQrResult("");
-
-    // reset mode
     setScanMode("scan-qr");
+
+    setPayoutChannel("GCASH");
+    setCheckNumber("");
 
     setViewCommission(false);
   };
@@ -261,6 +304,15 @@ export default function ClientsPage() {
       return;
     }
 
+    if (!branchCode) {
+      SweetAlert.errorAlert(
+        "Branch Required",
+        "Your account does not have an assigned branch."
+      );
+
+      return;
+    }
+
     SweetAlert.confirmationAlert(
       "Confirm Commission",
       "Are you sure you want to credit this commission?",
@@ -275,11 +327,16 @@ export default function ClientsPage() {
               scannedAgent.agent.id,
 
             branchId:
-              scannedAgent.agent.branches[0]
-                .branchId,
+              branchCode,
 
             scannedBy:
               user.id,
+
+            payoutChannel: payoutChannel,
+
+            gcashNumber: selectedPhoneNumber,
+
+            checkNumber: checkNumber
           },
           {
             onSuccess: () => {
@@ -315,12 +372,14 @@ export default function ClientsPage() {
      RENDER
   ========================================= */
 
+  
+
   return (
     <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48 ">
 
       {/* HEADER */}
       <ModuleHeader
-          title="Client"
+          title="SSP"
           subtitle="Master List"
           search={search}
           setSearch={setSearch}
@@ -693,6 +752,7 @@ export default function ClientsPage() {
                 ========================================= */}
               <div className="w-full flex flex-col gap-custom-32 py-custom-32 justify-center items-start">
                   {/* HEADER */}
+                  {scanMode === "scan-qr" ? (
                   <div className="w-full flex flex-col gap-custom-8 items-center">
                     <h1 className="text-secondaryHeader text-mainPrimary font-bold">
                       Scan QR Code
@@ -700,8 +760,17 @@ export default function ClientsPage() {
                     <p className="text-neutralPrimary font-normal text-body">
                       Place QR inside the frame to scan
                     </p>
+                  </div>):(
+                  <div className="w-full flex flex-col gap-custom-8 items-center">
+                    <h1 className="text-secondaryHeader text-mainPrimary font-bold">
+                      Search Eligible Agent
+                    </h1>
+                    <p className="text-neutralPrimary font-normal text-body">
+                      Find an agent by entering their full name or agent code.
+                    </p>
                   </div>
-                  {/* QR / INPUT */}
+                  )}
+                  {/* QR / AGENT SEARCH */}
                   <div className="w-full flex justify-center items-center">
                     {scanMode === "scan-qr" ? (
                       <div className="w-full flex flex-col items-center gap-4">
@@ -709,32 +778,190 @@ export default function ClientsPage() {
                           onScan={(text: string) => {
                             const cleaned =
                               text.trim();
-                            setQrResult(cleaned);
+
+                            setQrResult(
+                              cleaned
+                            );
+
+                            setSelectedAgent(
+                              null
+                            );
+
+                            setAgentSearch("");
                           }}
                         />
                       </div>
                     ) : (
-                      <div className="w-full flex justify-center">
+                      <div className="relative w-full max-w-105">
                         <input
                           type="text"
-                          placeholder="Enter Code"
-                          value={qrResult}
-                          onChange={(e) =>
-                            setQrResult(
-                              e.target.value
-                            )
+                          placeholder="Search agent name or code"
+                          value={
+                            selectedAgent
+                              ? `${selectedAgent.fullName}`
+                              : agentSearch
                           }
+                          onChange={(e) => {
+                            const value =
+                              e.target.value;
+
+                            setAgentSearch(
+                              value
+                            );
+
+                            setSelectedAgent(
+                              null
+                            );
+
+                            setQrResult("");
+
+                            setIsAgentDropdownOpen(
+                              true
+                            );
+                          }}
+                          onFocus={() => {
+                            setIsAgentDropdownOpen(
+                              true
+                            );
+                          }}
                           className="
                             w-full
-                            max-w-[320px]
                             border
                             border-neutralMed
                             rounded-xl
                             px-4 py-3
+                            pr-16
                             outline-none
                             focus:border-mainPrimary
                           "
                         />
+
+                        {selectedAgent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAgent(
+                                null
+                              );
+
+                              setAgentSearch("");
+
+                              setQrResult("");
+
+                              setIsAgentDropdownOpen(
+                                false
+                              );
+                            }}
+                            className="
+                              absolute
+                              right-3
+                              top-1/2
+                              -translate-y-1/2
+                              text-sm
+                              text-gray-500
+                              hover:text-gray-800
+                            "
+                          >
+                            Clear
+                          </button>
+                        )}
+
+                        {isAgentDropdownOpen &&
+                          !selectedAgent &&
+                          agentSearch.trim().length >= 2 && (
+                            <div
+                              className="
+                                absolute
+                                left-0
+                                right-0
+                                top-full
+                                z-50
+                                mt-2
+                                max-h-64
+                                overflow-y-auto
+                                rounded-xl
+                                border
+                                border-neutralMed
+                                bg-white
+                                shadow-lg
+                              "
+                            >
+                              {isSearchingAgents ? (
+                                <div className="px-4 py-3 text-sm text-gray-500">
+                                  Searching agents...
+                                </div>
+                              ) : eligibleAgents.length > 0 ? (
+                                eligibleAgents.map(
+                                  (agent) => (
+                                    <button
+                                      key={agent.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedAgent(
+                                          agent
+                                        );
+
+                                        setQrResult(
+                                          agent.agentCode
+                                        );
+
+                                        setAgentSearch("");
+
+                                        setIsAgentDropdownOpen(
+                                          false
+                                        );
+                                      }}
+                                      className="
+                                        flex
+                                        w-full
+                                        items-center
+                                        justify-between
+                                        gap-4
+                                        border-b
+                                        border-gray-100
+                                        px-4 py-3
+                                        text-left
+                                        last:border-b-0
+                                        hover:bg-gray-50
+                                      "
+                                    >
+                                      <div>
+                                        <p className="font-medium text-gray-900">
+                                          {
+                                            agent.fullName
+                                          }
+                                        </p>
+
+                                        <p className="text-sm text-gray-500">
+                                          {
+                                            agent.agentCode
+                                          }
+                                        </p>
+                                      </div>
+
+                                      <div className="text-right">
+                                        <p className="text-xs font-medium text-gray-600">
+                                          {
+                                            agent.level
+                                          }
+                                        </p>
+
+                                        <p className="text-xs text-green-600">
+                                          {
+                                            agent.status
+                                          }
+                                        </p>
+                                      </div>
+                                    </button>
+                                  )
+                                )
+                              ) : (
+                                <div className="px-4 py-3 text-sm text-gray-500">
+                                  No eligible agents found.
+                                </div>
+                              )}
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>
@@ -763,19 +990,19 @@ export default function ClientsPage() {
                       <li
                         onClick={() =>
                           setScanMode(
-                            "enter-code"
+                            "search-agent"
                           )
                         }
                         className={`
                           flex-1 text-center py-3 rounded-lg cursor-pointer transition-all
                           ${
-                            scanMode === "enter-code"
+                            scanMode === "search-agent"
                               ? "bg-white text-neutralPrimary font-semibold shadow-sm"
                               : "text-white"
                           }
                         `}
                       >
-                        Enter Code
+                        Search Agent
                       </li>
                     </ul>
                   </div>
@@ -839,8 +1066,8 @@ export default function ClientsPage() {
                             </div>
                             {/* DETAILS */}
                             <div className="flex flex-col gap-3">
-                              <div>
-                                <p className="text-xs text-gray-300">
+                              <div className="flex flex-col gap-custom-8">
+                                <p className="text-sm text-gray-300">
                                   Agent Fullname
                                 </p>
                                 <p className="text-mdHeader font-bold">
@@ -850,32 +1077,22 @@ export default function ClientsPage() {
                                 </p>
                               </div>
                               <div className="inline-flex flex-wrap gap-custom-16">
-                                <p className="text-xs font-semibold text-yellow-300">
+                                <p className="text-sm font-semibold text-yellow-300">
                                   ( {
                                     scannedAgent?.agent.level
                                   } )
                                 </p>
-                                <p className="text-xs text-gray-300">
+                                <p className="text-sm text-gray-300">
                                   Current Level
                                 </p>
               
                               </div>
-                              <div className="text-xs inline-flex flex-wrap gap-custom-16">
-                                <p className="font-semibold text-yellow-300">
-                                 ( {scannedAgent?.agent?.branches
-                                  ?.map((b) => b.branch.companyName )
-                                  ?.join(", ") || "-"}
-                                 )
-                                </p>
-                                <p className="text-sm text-gray-300">
-                                  Assigned Branch
-                                </p>
-              
-                              </div>
+                          
                             </div>
                           </div>
 
-                          <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-16 py-custom-16">
+
+                          <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-16 pb-custom-16">
                               <div className="flex justify-between">
                                       <h6 className="text-mdHeader">Commission</h6>
                                       <p className="text-body"></p>
@@ -893,6 +1110,153 @@ export default function ClientsPage() {
                                   <p className="text-xs text-neutralMed">{scannedAgent?.directCommission?.rule?.piraRate}% Commission Rate</p>
                               </div>
                             </div>
+
+                          {/* PAYOUT CHANNEL */}
+                          <div className="w-full flex flex-col gap-y-custom-16">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                Direct Commission Payout
+                              </p>
+
+                              <p className="text-xs text-gray-300">
+                                Select how the direct commission will be paid.
+                              </p>
+                            </div>
+
+                            <div
+                              className="
+                                bg-neutralLight/15
+                                rounded-xl
+                                w-full
+                                p-2
+                                grid
+                                grid-cols-2
+                                gap-2
+                              "
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPayoutChannel("GCASH");
+                                  setCheckNumber("");
+                                }}
+                                className={`
+                                  w-full
+                                  text-center
+                                  py-3
+                                  rounded-lg
+                                  cursor-pointer
+                                  transition-all
+                                  ${
+                                    payoutChannel === "GCASH"
+                                      ? "bg-lightPrimary text-white font-semibold shadow-sm"
+                                      : "text-white bg-neutralLight/5 hover:bg-neutralLight/10"
+                                  }
+                                `}
+                              >
+                                GCASH
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPayoutChannel("CHECK")
+                                }
+                                className={`
+                                  w-full
+                                  text-center
+                                  py-3
+                                  rounded-lg
+                                  cursor-pointer
+                                  transition-all
+                                  ${
+                                    payoutChannel === "CHECK"
+                                      ? "bg-positive text-white font-semibold shadow-sm"
+                                      : "text-white bg-neutralLight/5 hover:bg-neutralLight/10"
+                                  }
+                                `}
+                              >
+                                CHECK
+                              </button>
+                            </div>
+
+                            {payoutChannel === "CHECK" ? (
+                              <div className="flex flex-col gap-y-custom-8">
+                                <label
+                                  htmlFor="checkNumber"
+                                  className="text-sm font-semibold text-white"
+                                >
+                                  Check Number
+                                </label>
+
+                                <input
+                                  id="checkNumber"
+                                  type="text"
+                                  value={checkNumber}
+                                  onChange={(event) =>
+                                    setCheckNumber(
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Enter check number"
+                                  className="
+                                    w-full
+                                    rounded-lg
+                                    border
+                                    border-white/20
+                                    bg-white
+                                    px-4
+                                    py-3
+                                    text-neutralPrimary
+                                    outline-none
+                                    transition
+                                    focus:border-lightPrimary
+                                    focus:ring-2
+                                    focus:ring-lightPrimary/30
+                                  "
+                                />
+                              </div>
+                            ):(
+                              <div className="flex flex-col gap-y-custom-8">
+                                <label
+                                  htmlFor="gcashNumber"
+                                  className="text-sm font-semibold text-white"
+                                >
+                                  Registered Number
+                                </label>
+
+                                <select
+                                  value={selectedPhoneNumber}
+                                  onChange={(e) =>
+                                    setSelectedPhoneNumber(e.target.value)
+                                  }
+                                  className="
+                                    w-full
+                                    rounded-lg
+                                    border
+                                    border-white/20
+                                    bg-white
+                                    text-neutralPrimary
+                                    px-custom-8
+                                    py-3
+                                    text-md
+                                  "
+                                >
+                                  <option value={scannedAgent?.agent.telephone}>
+                                    Primary - {scannedAgent?.agent.telephone}
+                                  </option>
+
+                                  {scannedAgent?.agent.SecondaryTel && (
+                                    <option
+                                      value={scannedAgent.agent.SecondaryTel}
+                                    >
+                                      Secondary - {scannedAgent.agent.SecondaryTel}
+                                    </option>
+                                  )}
+                                </select>
+                              </div>
+                            )}
+                          </div>
 
                             {/* UPLINE COMMISSIONS */}
                             {scannedAgent?.overrideCommissions &&
@@ -1133,6 +1497,32 @@ export default function ClientsPage() {
                           "
                         >
                           {commissionDetails?.client.term}
+                        </p>
+                      </div>
+                      <div
+                        className="
+                          bg-neutralLight
+                          py-custom-8
+                          px-custom-16
+                          rounded-xl
+                          w-full
+                        "
+                      >
+                        <h2
+                          className="
+                            text-xs
+                            text-neutralPrimary
+                          "
+                        >
+                          Payout Channel
+                        </h2>
+                        <p
+                          className="
+                            font-bold
+                            text-sm
+                          "
+                        >
+                          {commissionDetails?.payoutChannel}
                         </p>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 // routes/reactivation.route.ts
 
 import express from "express";
-import { checkReactivationController, getMyReactivationApprovalProgressController, getMyReactivationApprovalsController, reviewReactivationApprovalController, selfReactivateController, submitAdminReactivationRequestController } from "./reactivate.controller";
+import { checkReactivationController, getMyReactivationApprovalProgressController, getMyReactivationApprovalsController, getReactivationRequestDetailsController, reviewReactivationApprovalController, selfReactivateController, submitAdminReactivationRequestController, submitReactivationRequestController } from "./reactivate.controller";
 import { authenticateToken } from "../auth/auth.middleware";
 import { uploadReactivationRequest } from "../agents/utils/upload.middleware";
 
@@ -25,6 +25,11 @@ router.get(
   getMyReactivationApprovalProgressController
 );
 
+router.get(
+  "/requests/:requestId/details",authenticateToken,
+  getReactivationRequestDetailsController
+)
+
 router.patch(
   "/reactivation-approvals/review",
   authenticateToken,
@@ -44,6 +49,17 @@ router.post(
   ),
   submitAdminReactivationRequestController
 );
+
+router.post(
+  "/reactivation-request",
+  authenticateToken,
+  uploadReactivationRequest.single(
+    "formalRequestFile"
+  ),
+  submitReactivationRequestController
+);
+
+
 
 
 export default router;

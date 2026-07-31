@@ -14,6 +14,11 @@ export const registerSocketEvents = (io: Server) => {
       console.log(`Upline joined reactivation room: agent:${agentId}`);
     });
 
+    socket.on("join-branch-reactivation-room", (branchCode: string) => {
+      socket.join(`branch:${branchCode}`);
+      console.log(`Branch joined reactivation room: branch:${branchCode}`);
+    });
+
     socket.on("join-admin-reactivation-room", () => {
       socket.join("admin:reactivation");
       console.log("Admin joined room: admin:reactivation");

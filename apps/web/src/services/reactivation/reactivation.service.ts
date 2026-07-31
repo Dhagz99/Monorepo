@@ -5,9 +5,11 @@ import {
   GetMyReactivationApprovalsResponse,
   ReactivationApprovalProgressResponse,
   ReactivationCheckResponse,
+  ReactivationRequestDetailsResponse,
   ReviewReactivationApprovalPayload,
   ReviewReactivationApprovalResponse,
   SubmitAdminReactivationResponse,
+  SubmitReactivationResponse,
 } from "@repo/shared";
 
 export const checkReactivationService =
@@ -44,6 +46,33 @@ export const submitAdminReactivationRequestService =
     return res.data;
   };
 
+export const submitReactivationRequestService = async (
+  formData: FormData
+): Promise<SubmitReactivationResponse> => {
+  const response =
+    await api.post<SubmitReactivationResponse>(
+      "/reactivation/reactivation-request",
+      formData
+    );
+
+  return response.data;
+};
+
+
+export const getReactivationRequestDetailsService =
+  async (
+    requestId: string
+  ): Promise<ReactivationRequestDetailsResponse> => {
+    const response =
+      await api.get<{
+        success: boolean;
+        data: ReactivationRequestDetailsResponse;
+      }>(
+        `/reactivation/requests/${requestId}/details`
+      );
+
+    return response.data.data;
+  };
 
 export const getMyReactivationApprovalsService =
   async (

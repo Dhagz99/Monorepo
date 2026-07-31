@@ -12,9 +12,6 @@ import prisma from "../../lib/prisma";
 import { NotificationType } from "../../../generated/prisma";
 import { emitNotification } from "../../socket/socketEmitter";
 
-const MAX_L2_PER_L1 = 10;
-const MAX_L3_PER_L2 = 10;
-
 function canUplineAcceptDownline(
   uplineLevel: string,
   downlineLevel: string
@@ -25,50 +22,6 @@ function canUplineAcceptDownline(
   );
 }
 
-function hasSameBranch(
-  uplineBranchIds: string[],
-  selectedDownlineBranchIds: string[]
-) {
-  return selectedDownlineBranchIds.every((branchId) =>
-    uplineBranchIds.includes(branchId)
-  );
-}
-
-function countSelectedLevels(
-  downlines: { level: string }[]
-) {
-  return {
-    L2: downlines.filter((d) => d.level === "L2").length,
-    L3: downlines.filter((d) => d.level === "L3").length,
-  };
-}
-
-function getAvailableSlots(
-  upline: {
-    level: string;
-    downlines: { level: string }[];
-  }
-) {
-  const currentL2 = upline.downlines.filter(
-    (d) => d.level === "L2"
-  ).length;
-
-  const currentL3 = upline.downlines.filter(
-    (d) => d.level === "L3"
-  ).length;
-
-  return {
-    availableL2Slots:
-      upline.level === "L1"
-        ? Math.max(MAX_L2_PER_L1 - currentL2, 0)
-        : 0,
-
-    availableL3Slots:
-      upline.level === "L2"
-        ? Math.max(MAX_L3_PER_L2 - currentL3, 0)
-        : 0,
-  };
-}
 export const getDroppedAgents = async ({
   page = 1,
   limit = 10,
@@ -212,25 +165,9 @@ export const getAvailableReassignmentUplines = async (
           select: {
             id: true,
             level: true,
-            branches: {
-              select: {
-                branchId: true,
-              },
-            },
           },
         })
       : [];
-  
-  const selectedDownlineBranchIds = [
-    ...new Set(
-      selectedDownlines.flatMap((downline) =>
-        downline.branches.map((branch) => branch.branchId)
-      )
-    ),
-  ];
-
-  const selectedCounts =
-    countSelectedLevels(selectedDownlines);
 
   const uplines = await prisma.agent.findMany({
     where: {
@@ -241,17 +178,10 @@ export const getAvailableReassignmentUplines = async (
         ],
       },
       status: {
-        notIn: ["DROPPED", "EXPIRED"],
+        notIn: ["DROPPED", "EXPIRED", "SUSPENDED", "PENDING"],
       },
       level: {
         in: ["L1", "L2"],
-      },
-      branches: {
-        some: {
-          branchId: {
-            in: selectedDownlineBranchIds,
-          },
-        },
       },
     },
     select: {
@@ -260,76 +190,24 @@ export const getAvailableReassignmentUplines = async (
       fullName: true,
       level: true,
       status: true,
-
-      branches: {
-        select: {
-          branchId: true,
-        },
-      },
-
-      downlines: {
-        select: {
-          id: true,
-          level: true,
-        },
-      },
     },
     orderBy: {
       fullName: "asc",
     },
   });
-  const data = uplines
-    .map((upline) => {
-      const {
-        availableL2Slots,
-        availableL3Slots,
-      } = getAvailableSlots(upline);
 
-      return {
-        id: upline.id,
-        agentCode: upline.agentCode,
-        fullName: upline.fullName,
-        level: upline.level,
-        status: upline.status,
-        availableL2Slots,
-        availableL3Slots,
-      };
-    })
-    .filter((upline) => {
-      if (selectedDownlines.length === 0) {
-        return true;
-      }
+  const data = uplines.filter((upline) => {
+    if (selectedDownlines.length === 0) {
+      return true;
+    }
 
-      const allowed =
-        selectedDownlines.every((downline) =>
-          canUplineAcceptDownline(
-            upline.level,
-            downline.level
-          )
-        );
-
-      if (!allowed) {
-        return false;
-      }
-
-      if (upline.level === "L1") {
-        return (
-          selectedCounts.L2 > 0 &&
-          selectedCounts.L3 === 0 &&
-          upline.availableL2Slots >= selectedCounts.L2
-        );
-      }
-
-      if (upline.level === "L2") {
-        return (
-          selectedCounts.L3 > 0 &&
-          selectedCounts.L2 === 0 &&
-          upline.availableL3Slots >= selectedCounts.L3
-        );
-      }
-
-      return false;
-    });
+    return selectedDownlines.every((downline) =>
+      canUplineAcceptDownline(
+        upline.level,
+        downline.level
+      )
+    );
+  });
 
   return {
     data,
@@ -390,11 +268,10 @@ export const reassignDownlines = async (
       throw new Error("New upline not found.");
     }
 
-    if (
-      newUpline.status === "DROPPED" ||
-      newUpline.status === "EXPIRED"
-    ) {
-      throw new Error("New upline must be active.");
+    if (!["ACTIVE", "PROBATION"].includes(newUpline.status)) {
+      throw new Error(
+        "New upline must be ACTIVE or PROBATION."
+      );
     }
 
     if (
@@ -441,32 +318,7 @@ export const reassignDownlines = async (
       );
     }
 
-    const selectedCounts =
-      countSelectedLevels(downlines);
-
-    const {
-      availableL2Slots,
-      availableL3Slots,
-    } = getAvailableSlots(newUpline);
-
-    if (
-      newUpline.level === "L1" &&
-      selectedCounts.L2 > availableL2Slots
-    ) {
-      throw new Error(
-        `Selected L1 upline only has ${availableL2Slots} available L2 slot(s).`
-      );
-    }
-
-    if (
-      newUpline.level === "L2" &&
-      selectedCounts.L3 > availableL3Slots
-    ) {
-      throw new Error(
-        `Selected L2 upline only has ${availableL3Slots} available L3 slot(s).`
-      );
-    }
-
+    
     await tx.agent.updateMany({
       where: {
         id: {

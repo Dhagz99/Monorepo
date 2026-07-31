@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import SweetAlert from "@/components/modal/Swal";
 
 import axios from "axios";
+import { useEffect } from "react";
 
 interface ApiErrorResponse {
   code?: string;
@@ -25,7 +26,7 @@ interface ApiErrorResponse {
 export default function LoginPage() {
 
     const router = useRouter();
-    const { refreshUser } = useAuth();
+    const { user, loading, refreshUser } = useAuth();
 
     const { mutateAsync } = useLogin();
   const {
@@ -123,6 +124,38 @@ const onSubmit = async (
   );
 }
 };
+
+  useEffect(() => {
+    if (loading || !user) {
+      return;
+    }
+
+    if (
+      user.permissions.includes(
+        "PROFILE_ACCESS"
+      )
+    ) {
+      router.replace("/Profile");
+      return;
+    }
+
+    if (
+      user.permissions.includes(
+        "DASHBOARD_ACCESS"
+      )
+    ) {
+      router.replace("/");
+      return;
+    }
+
+    router.replace(
+      "/unauthorized"
+    );
+  }, [
+    loading,
+    user,
+    router,
+  ]);
   return (
     <div className="relative min-h-screen bg-white text-mainPrimary w-full flex gap-custom-16 overflow-hidden">
         <div className="w-full flex flex-col-reverse gap-y-12 lg:flex-row z-50">

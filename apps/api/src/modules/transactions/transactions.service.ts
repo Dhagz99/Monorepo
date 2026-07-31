@@ -1,11 +1,6 @@
+import { ListParams } from "@repo/shared";
 import prisma from "../../lib/prisma";
 
-type ListParams = {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: string;
-};
 
 const getPagination = (page = 1, limit = 10) => {
   const safePage = Math.max(Number(page) || 1, 1);
@@ -160,114 +155,88 @@ export const getAdminReactivationPaymentsService = async ({
     totalPages: Math.ceil(total / pagination.limit),
   };
 };
-// export const getAdminReactivationPaymentsService = async ({
-//   page = 1,
-//   limit = 10,
-//   search,
-//   status,
-// }: ListParams) => {
-//   const pagination = getPagination(page, limit);
-
-//   const where: any = {
-//     ...(status && status !== "ALL"
-//       ? {
-//           status,
-//         }
-//       : {}),
-
-//     ...(search
-//       ? {
-//           OR: [
-//             {
-//               agent: {
-//                 fullName: {
-//                   contains: search,
-//                   mode: "insensitive",
-//                 },
-//               },
-//             },
-//             {
-//               agent: {
-//                 agentCode: {
-//                   contains: search,
-//                   mode: "insensitive",
-//                 },
-//               },
-//             },
-//             {
-//               xenditReferenceId: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               xenditPaymentSessionId: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//           ],
-//         }
-//       : {}),
-//   };
-
-//   const [data, total] = await prisma.$transaction([
-//     prisma.agentReactivationPayment.findMany({
-//       where,
-//       skip: pagination.skip,
-//       take: pagination.limit,
-//       orderBy: [
-//         {
-//           updatedAt: "desc",
-//         },
-//         {
-//           createdAt: "desc",
-//         },
-//       ],
-//       include: {
-//         agent: {
-//           select: {
-//             id: true,
-//             fullName: true,
-//             agentCode: true,
-//             level: true,
-//           },
-//         },
-//         request: {
-//           select: {
-//             id: true,
-//             status: true,
-//             requestType: true,
-//             requestedAt: true,
-//           },
-//         },
-//       },
-//     }),
-
-//     prisma.agentReactivationPayment.count({
-//       where,
-//     }),
-//   ]);
-
-//   return {
-//     data,
-//     page: pagination.page,
-//     limit: pagination.limit,
-//     total,
-//     totalPages: Math.ceil(total / pagination.limit),
-//   };
-// };
 
 
 export const getAdminWithdrawalsService = async ({
+  userId,
   page = 1,
   limit = 10,
   search,
   status,
 }: ListParams) => {
-  const pagination = getPagination(page, limit);
+    const user =
+      await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+
+        select: {
+          id: true,
+          username: true,
+
+          roles: {
+            select: {
+              role: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+
+          branchId: true
+        },
+      });
+
+    if (!user) {
+      throw new Error(
+        "Authenticated user not found."
+      );
+    }
+
+    const seeAllRoles =
+      new Set<string>([
+        "ADMIN",
+        "OPERATIONS",
+        "BOD_ADMIN",
+        "DEV",
+      ]);
+
+    const canSeeAllTransactions =
+      user.roles.some(({ role }) =>
+        seeAllRoles.has(role.name)
+      );
+
+    const userBranchCode =
+      user.branchId;
+
+    if (
+      !canSeeAllTransactions &&
+      !userBranchCode
+    ) {
+      throw new Error(
+        "The logged-in user is not assigned to a branch."
+      );
+    }
+
+    const pagination =
+      getPagination(page, limit);
+
+    const normalizedSearch =
+      search?.trim() ?? "";
+
 
   const where: any = {
+     ...(!canSeeAllTransactions
+          ? {
+              commissionScan: {
+                is: {
+                  branchId:
+                   user.branchId,
+                },
+              },
+            }
+          : {}),
     ...(status && status !== "ALL"
       ? {
           status,
@@ -414,111 +383,3 @@ export const getAdminWithdrawalsService = async ({
     totalPages: Math.ceil(total / pagination.limit),
   };
 };
-
-// export const getAdminWithdrawalsService = async ({
-//   page = 1,
-//   limit = 10,
-//   search,
-//   status,
-// }: ListParams) => {
-//   const pagination = getPagination(page, limit);
-
-//   const where: any = {
-//     ...(status && status !== "ALL"
-//       ? {
-//           status,
-//         }
-//       : {}),
-
-//     ...(search
-//       ? {
-//           OR: [
-//             {
-//               accountName: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               accountNumber: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               payoutChannel: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               xenditExternalId: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               xenditDisbursementId: {
-//                 contains: search,
-//                 mode: "insensitive",
-//               },
-//             },
-//             {
-//               agent: {
-//                 fullName: {
-//                   contains: search,
-//                   mode: "insensitive",
-//                 },
-//               },
-//             },
-//             {
-//               agent: {
-//                 agentCode: {
-//                   contains: search,
-//                   mode: "insensitive",
-//                 },
-//               },
-//             },
-//           ],
-//         }
-//       : {}),
-//   };
-
-//   const [data, total] = await prisma.$transaction([
-//     prisma.creditWithdrawalRequest.findMany({
-//       where,
-//       skip: pagination.skip,
-//       take: pagination.limit,
-//       orderBy: [
-//         {
-//           updatedAt: "desc",
-//         },
-//         {
-//           requestedAt: "desc",
-//         },
-//       ],
-//       include: {
-//         agent: {
-//           select: {
-//             id: true,
-//             fullName: true,
-//             agentCode: true,
-//             level: true,
-//           },
-//         },
-//       },
-//     }),
-
-//     prisma.creditWithdrawalRequest.count({
-//       where,
-//     }),
-//   ]);
-
-//   return {
-//     data,
-//     page: pagination.page,
-//     limit: pagination.limit,
-//     total,
-//     totalPages: Math.ceil(total / pagination.limit),
-//   };
-// };

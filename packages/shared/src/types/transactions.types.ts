@@ -1,3 +1,12 @@
+export type ListParams = {
+  userId?: number;
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+};
+
+
 export type PaymentDashboardTab = "PAYMENTS" | "WITHDRAW";
 
 export type ReactivationPaymentStatus =

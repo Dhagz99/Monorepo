@@ -1,4 +1,5 @@
 import {
+  NextFunction,
   Request,
   Response,
 } from "express";
@@ -18,11 +19,16 @@ import {
   droppedOrSuspendedAgentService,
   updateAgentAccountService,
   getAgentRemainingSales,
+  updateAdminAccountService,
+  updateAgentDetailsService,
+  getAgentEditDetailsService,
 } from "./agents.service";
 
 import {
   registrationAgentSchema,
   updateAccSchema,
+  updateAdminAccSchema,
+  UpdateAgentDetailsPayload,
 } from "@repo/shared";
 
 export const searchBranchController = 
@@ -52,6 +58,45 @@ export const searchBranchController =
         }
     }
 
+export const searchAgentsReactivateController =
+ async (
+  req:Request,
+  res:Response
+ ) => {
+  try {
+
+      const {
+        search,
+      } = req.query;
+
+      const result =
+        await searchAgents(
+          typeof search ===
+            "string"
+            ? search
+            : undefined
+        );
+
+      return res
+        .status(200)
+        .json(result);
+
+    } catch (error) {
+
+      console.error(
+        "Search Agents Error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          message:
+            "Failed to search agents",
+        });
+    }
+ }
+
 export const searchAgentsController =
   async (
     req: Request,
@@ -61,41 +106,14 @@ export const searchAgentsController =
 
       const {
         search,
-        branchCodes,
       } = req.query;
-
-      let parsedBranchCodes:
-        string[] | undefined;
-
-      if (
-        typeof branchCodes === "string"
-      ) {
-
-        parsedBranchCodes =
-          branchCodes.split(",");
-
-      } else if (
-        Array.isArray(branchCodes)
-      ) {
-
-        parsedBranchCodes =
-          branchCodes.filter(
-            (
-              item
-            ): item is string =>
-              typeof item ===
-              "string"
-          );
-      }
 
       const result =
         await searchAgents(
           typeof search ===
             "string"
             ? search
-            : undefined,
-
-          parsedBranchCodes
+            : undefined
         );
 
       return res
@@ -336,14 +354,7 @@ export const getMasterlistController = async (
         status,
       } = req.query;
 
-      const user = req.user;
 
-      console.log(JSON.stringify(req.user, null, 2));
-
-      const isBranchAccount =
-      user?.roles?.includes("BRANCH_ACC") ?? false;
-
-      console.log(user?.branchCode)
       const result = await agentMasterlist({
         page: page
           ? Number(page)
@@ -363,10 +374,7 @@ export const getMasterlistController = async (
             ? status
             : undefined,
 
-        branchCode:
-          isBranchAccount && user?.branchCode
-            ? user.branchCode
-            : undefined,
+
           });
   
       return res.status(200).json(result);
@@ -638,6 +646,51 @@ export const readAllNotifController = async (
     }
   };
 
+  export const updateAdminAccountController =
+  async (
+    req: Request,
+    res: Response
+  ) => {
+    try {
+
+      const parsed =
+        updateAdminAccSchema.safeParse(
+          req.body
+        );
+
+      if (!parsed.success) {
+        return res.status(400).json({
+          errors:
+            parsed.error.flatten(),
+        });
+      }
+
+      const userId =
+        (req as any).user.id;
+
+      const result =
+        await updateAdminAccountService(
+          userId,
+          parsed.data
+        );
+
+      return res.status(200).json({
+        message:
+          "Account updated successfully",
+        data: result,
+      });
+
+    } catch (error) {
+
+      console.error(error);
+
+      return res.status(500).json({
+        message:
+          "Failed to update account",
+      });
+    }
+  };
+
 
 export const getRemainingSalesController =
   async (
@@ -667,3 +720,119 @@ export const getRemainingSalesController =
       });
     }
   };
+
+
+
+
+
+
+
+  
+  // Edit Agent 
+
+
+  export async function getAgentEditDetailsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const {
+      agentId,
+    } =
+      req.params;
+
+    if (!agentId) {
+      return res.status(400).json({
+        message:
+          "Agent ID is required.",
+      });
+    }
+
+    const agent =
+      await getAgentEditDetailsService(
+        agentId
+      );
+
+    return res.status(200).json(
+      agent
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateAgentDetailsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const {
+      agentId,
+    } =
+      req.params;
+
+    if (!agentId) {
+      return res.status(400).json({
+        message:
+          "Agent ID is required.",
+      });
+    }
+
+    const payload: UpdateAgentDetailsPayload = {
+      fullName:
+        req.body.fullName,
+
+      username:
+        req.body.username ??
+        null,
+
+      level:
+        req.body.level,
+
+      status:
+        req.body.status,
+
+      gender:
+        req.body.gender ??
+        null,
+
+      birthDate:
+        req.body.birthDate ??
+        null,
+
+      address:
+        req.body.address ??
+        null,
+
+      email:
+        req.body.email ??
+        null,
+
+      telephone:
+        req.body.telephone ??
+        null,
+
+      secondaryTel:
+        req.body.secondaryTel ??
+        null,
+    };
+
+    const updatedAgent =
+      await updateAgentDetailsService(
+        agentId,
+        payload
+      );
+
+    return res.status(200).json({
+      message:
+        "Agent information updated successfully.",
+
+      data:
+        updatedAgent,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

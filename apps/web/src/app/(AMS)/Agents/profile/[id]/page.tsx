@@ -19,8 +19,7 @@ import { useEffect } from "react";
 type TABKEY =
   | "all-activities"
   | "sales"
-  | "commission"
-  | "withrawal";
+  | "commission";
 
 export default function AgentDetailsPage() {
 
@@ -77,12 +76,12 @@ export default function AgentDetailsPage() {
         "Commission",
       icon: Wallet,
     },
-     {
-      key: "withrawal",
-      label:
-        "Withrawal",
-      icon: RefreshCw,
-    },
+    //  {
+    //   key: "withrawal",
+    //   label:
+    //     "Withrawal",
+    //   icon: RefreshCw,
+    // },
   ];
 
 
@@ -155,7 +154,6 @@ export default function AgentDetailsPage() {
         )
       : agent?.downlines ?? [];
 
-
   const totalDownlinePages = Math.max(
     1,
     Math.ceil(
@@ -164,19 +162,25 @@ export default function AgentDetailsPage() {
     )
   );
 
+  const validDownlinePage = Math.min(
+    downlinePage,
+    totalDownlinePages
+  );
+
   const paginatedDownlines =
     filteredDownlines.slice(
-      (downlinePage - 1) *
+      (validDownlinePage - 1) *
         DOWNLINES_PER_PAGE,
-
-      downlinePage *
+      validDownlinePage *
         DOWNLINES_PER_PAGE
     );
 
-  
-  useEffect(() => {
+  const handleDownlineTabChange = (
+    tab: "L2" | "L3"
+  ) => {
+    setDownlineTab(tab);
     setDownlinePage(1);
-  }, [downlineTab]);
+  };
 
   useEffect(() => {
 
@@ -251,12 +255,12 @@ export default function AgentDetailsPage() {
               "DOWNLINE"
           );
 
-        case "withrawal":
-          return transactionData.data.filter(
-            (transaction: AgentTransaction) =>
-              transaction.commissionType ===
-              "WITHDRAW"
-          );
+        // case "withrawal":
+        //   return transactionData.data.filter(
+        //     (transaction: AgentTransaction) =>
+        //       transaction.commissionType ===
+        //       "WITHDRAW"
+        //   );
     
   
         default:
@@ -451,18 +455,7 @@ export default function AgentDetailsPage() {
                 <div className="w-full flex flex-col gap-y-custom-24">
                     <div className="w-full flex justify-between items-center flex-wrap gap-custom-16">
                         <h1 className="text-secondaryHeader font-bold text-mainPrimary">{agent?.fullName}</h1>
-                        <p className={`py-custom-8 px-custom-16 rounded-xl text-body text-white font-medium
-                            ${agent.status === "ACTIVE"
-                                ? "bg-positive"
-                                : agent.status === "EXPIRED"
-                                ? "bg-negative"
-                                : agent.status === "DROPPED"
-                                ? "bg-darkPrimary"
-                                : agent.status === "SUSPENDED"
-                                ? "bg-secondary"
-          
-                                : "bg-neutralPrimary"}
-                         `}>{agent?.status}</p>
+                        
                     </div>
                     <div className="grid md:grid-cols-2 gap-custom-16">
                         <div className="w-full flex justify-start gap-x-custom-16 items-center bg-neutralLight p-custom-8 rounded-md">
@@ -487,21 +480,19 @@ export default function AgentDetailsPage() {
                           >({agent?.creditScore})</strong>
                           <h6 className="text-body font-bold text-neutralPrimary">Credit Score</h6>
                         </div>
-                       <div className="w-full flex justify-start gap-x-custom-16 items-center bg-neutralLight p-custom-8 rounded-md">
-                        <div className="flex flex-wrap gap-2">
-                          {agent.branches.map((branch) => (
-                            <strong
-                              key={branch.id}
-                              className="text-darkPrimary text-body"
-                            >
-                              ({branch.branch.companyName})
-                            </strong>
-                          ))}
-                        </div>
-                        <h6 className="text-body font-bold text-neutralPrimary">
-                          Assigned Branches
-                        </h6>
-                      </div>
+                        <p className={`py-custom-8 px-custom-16 rounded-xl text-center text-body text-white font-medium
+                            ${agent.status === "ACTIVE"
+                                ? "bg-positive"
+                                : agent.status === "EXPIRED"
+                                ? "bg-negative"
+                                : agent.status === "DROPPED"
+                                ? "bg-darkPrimary"
+                                : agent.status === "SUSPENDED"
+                                ? "bg-secondary"
+          
+                                : "bg-neutralPrimary"}
+                         `}>{agent?.status}
+                         </p>
                     </div>
                 </div>
               </div>
@@ -938,7 +929,9 @@ export default function AgentDetailsPage() {
                   <div className="flex items-center gap-custom-16 bg-neutralLight p-1 rounded-lg">
                     <button
                       type="button"
-                      onClick={() => setDownlineTab("L2")}
+                      onClick={() => {
+                       handleDownlineTabChange("L2");
+                      }}
                       className={`
                         px-custom-16
                         py-custom-8
@@ -964,7 +957,9 @@ export default function AgentDetailsPage() {
 
                     <button
                       type="button"
-                      onClick={() => setDownlineTab("L3")}
+                      onClick={() => {
+                         handleDownlineTabChange("L3");
+                      }}
                       className={`
                         px-custom-16
                         py-custom-8
@@ -1092,13 +1087,13 @@ export default function AgentDetailsPage() {
                   downlines
                 </div>
 
-                <div className="flex items-center gap-custom-16">
+                <div className="flex items-center gap-custom-16 text-neutralPrimary">
                   <button
                     type="button"
-                    disabled={downlinePage === 1}
+                    disabled={validDownlinePage === 1}
                     onClick={() =>
-                      setDownlinePage((prev) =>
-                        Math.max(prev - 1, 1)
+                      setDownlinePage((previous) =>
+                        Math.max(previous - 1, 1)
                       )
                     }
                     className="
@@ -1114,20 +1109,21 @@ export default function AgentDetailsPage() {
                     Previous
                   </button>
 
-                  <span className="font-semibold text-sm">
-                    {downlinePage} / {totalDownlinePages}
+                  <span className="font-semibold text-sm ">
+                    {validDownlinePage} /{" "}
+                    {totalDownlinePages}
                   </span>
 
                   <button
                     type="button"
                     disabled={
-                      downlinePage ===
+                      validDownlinePage >=
                       totalDownlinePages
                     }
                     onClick={() =>
-                      setDownlinePage((prev) =>
+                      setDownlinePage((previous) =>
                         Math.min(
-                          prev + 1,
+                          previous + 1,
                           totalDownlinePages
                         )
                       )

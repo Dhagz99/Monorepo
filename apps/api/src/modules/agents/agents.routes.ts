@@ -1,17 +1,19 @@
 import { Router } from "express";
 import { authenticateToken } from "../auth/auth.middleware";
-import { searchAgentsController, getMasterlistController, searchBranchController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController, getRemainingSalesController} from "./agents.controller";
-import { uploadReactivationRequest } from "./utils/upload.middleware";
+import { searchAgentsController, getMasterlistController, searchBranchController,searchAgentsReactivateController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController, getRemainingSalesController, updateAdminAccountController, getAgentEditDetailsController, updateAgentDetailsController} from "./agents.controller";
+
 
 
 const router = Router();
 
 router.get("/searchAgent", searchAgentsController);
+router.get("/searchAgentReactivate", searchAgentsReactivateController);
 router.get("/searchBranch", searchBranchController);
 router.get("/details/:agentId", getAgentDetailsController);
 router.get("/details/:agentId/transactions", getAgentTransactionsController);
 router.get("/transactions/:agentId/history", getAgentTransactionsHistController);
 router.get("/remaining-sales/:agentId",getRemainingSalesController);
+router.get("/:agentId/edit-details",authenticateToken,getAgentEditDetailsController);
 
 router.post("/registerAgent", registerAgentController);
 router.post("/getPendingAgent", getAllPendingAgentController);
@@ -25,5 +27,8 @@ router.patch("/read-all/:agentId", readAllNotifController);
 
 
 router.patch("/update-account",authenticateToken,updateAgentAccountController);
+router.patch("/update-admin-account",authenticateToken,updateAdminAccountController);
+router.patch("/:agentId/edit-details",authenticateToken,updateAgentDetailsController);
+
 
 export default router;

@@ -1,6 +1,7 @@
 import api from "@/lib/axios";
 
 import {
+  AgentEditDetails,
   CheckUniqueInfoParams,
   CheckUniqueInfoResponse,
   GetAgentDetailsParams,
@@ -22,8 +23,11 @@ import {
   SearchBranchParams,
   SearchBranchResponse,
   TransactionHistParams,
+  UpdateAdminAccSchema,
   UpdateAgentAccountResponse,
   UpdateAgentAccSchema,
+  UpdateAgentDetailsPayload,
+  UpdateAgentResponse,
 
 } from "@repo/shared";
 
@@ -34,6 +38,21 @@ export const searchAgentsService =
 
     const res = await api.get(
       "/agents/searchAgent",
+      {
+        params,
+      }
+    );
+
+    return res.data;
+  };
+
+export const searchAgentsReactivateService =
+  async (
+    params: SearchAgentsParams
+  ): Promise<SearchAgentsResponse> => {
+
+    const res = await api.get(
+      "/agents/searchAgentReactivate",
       {
         params,
       }
@@ -233,6 +252,21 @@ export const updateAgentAccountService =
   };
 
 
+export const updateAdminAccountService =
+  async (
+    payload: UpdateAdminAccSchema
+  ): Promise<UpdateAgentAccountResponse> => {
+
+    const res = await api.patch(
+      "/agents/update-admin-account",
+      payload
+    );
+
+    return res.data;
+  };
+
+
+
 export const getRemainingSalesService =
   async (
     params: GetRemainingSalesParams
@@ -245,3 +279,30 @@ export const getRemainingSalesService =
     return res.data;
   };
 
+
+// Edit Agent 
+export async function getAgentEditDetails(
+  agentId: string
+): Promise<AgentEditDetails> {
+  const response =
+    await api.get<AgentEditDetails>(
+      `/agents/${agentId}/edit-details`
+    );
+
+  return response.data;
+}
+
+export async function updateAgentDetails(
+  params: {
+    agentId: string;
+    payload: UpdateAgentDetailsPayload;
+  }
+): Promise<UpdateAgentResponse> {
+  const response =
+    await api.patch<UpdateAgentResponse>(
+      `/agents/${params.agentId}/edit-details`,
+      params.payload
+    );
+
+  return response.data;
+}

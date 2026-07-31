@@ -1,100 +1,283 @@
-"use client"
+// "use client"
 
-import api from "@/lib/axios"
-import { createContext, useContext, useEffect, useState } from "react"
+// import api from "@/lib/axios"
+// import { createContext, useContext, useEffect, useState } from "react"
+// import { useRouter } from "next/navigation"
 
 
-type User = {
-  id: number
+// type User = {
+//   id: number
 
-  username: string
+//   username: string
 
-  email?: string | null
+//   email?: string | null
 
-  roles: string[]
+//   roles: string[]
 
-  branch?: {
-    branchCode: string
-    companyName?: string | null
-    location?: string | null
-  } | null
+//   branch?: {
+//     branchCode: string
+//     companyName?: string | null
+//     location?: string | null
+//   } | null
 
-  permissions: string[]
+//   permissions: string[]
 
-  agent?: {
-    id: string
+//   agent?: {
+//     id: string
 
-    fullName: string
+//     fullName: string
 
-    agentCode: string
+//     agentCode: string
 
-    level: string
+//     level: string
 
-    status: string
+//     status: string
 
-    accountType: string
+//     accountType: string
 
-    email?: string | null
+//     email?: string | null
 
-    telephone?: string | null
-  } | null
-}
+//     telephone?: string | null
+//   } | null
+// }
 
-type AuthContextType = {
-  user: User | null
-  loading: boolean
-  setUser: (user: User | null) => void
-  logout: () => Promise<void>
-  hasRole: (role: string) => boolean
+// type AuthContextType = {
+//   user: User | null
+//   loading: boolean
+//   setUser: (user: User | null) => void
+//   logout: () => Promise<void>
+//   hasRole: (role: string) => boolean
 
-  refreshUser: () => Promise<User | null>
+//   refreshUser: () => Promise<User | null>
 
-  hasPermission: (permission: string) => boolean
-}
+//   hasPermission: (permission: string) => boolean
+// }
 
-const AuthContext = createContext<AuthContextType | null>(null)
+// const AuthContext = createContext<AuthContextType | null>(null)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+// const router =
+//     useRouter();
 
-  useEffect(() => {
-    api
-      .get("/auth/me")
-      .then(res => setUser(res.data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
-  }, [])
+// export function AuthProvider({ children }: { children: React.ReactNode }) {
+//   const [user, setUser] = useState<User | null>(null)
+//   const [loading, setLoading] = useState(true)
 
-  const logout = async () => {
-    await api.post("/auth/logout")
-    setUser(null)
-    window.location.href = "/login"
-  }
+//   useEffect(() => {
+//     api
+//       .get("/auth/me")
+//       .then(res => setUser(res.data))
+//       .catch(() => setUser(null))
+//       .finally(() => setLoading(false))
+//   }, [])
 
- const refreshUser = async (): Promise<User | null> => {
-    try {
 
-      const res = await api.get("/auth/me");
+//   useEffect(() => {
+//   if (!loading && !user) {
+//       router.replace("/login");
+//     }
+//   }, [
+//     loading,
+//     user,
+//     router,
+//   ]);
 
-      setUser(res.data);
+//   const logout = async () => {
+//     await api.post("/auth/logout")
+//     setUser(null)
+//     window.location.href = "/login"
+//   }
 
-      return res.data;
+//  const refreshUser = async (): Promise<User | null> => {
+//     try {
 
-    } catch {
+//       const res = await api.get("/auth/me");
 
-      setUser(null);
+//       setUser(res.data);
 
-      return null;
-    }
-  }
+//       return res.data;
+
+//     } catch {
+
+//       setUser(null);
+
+//       return null;
+//     }
+//   }
   
 
-  const hasRole = (role: string) =>
-    user?.roles?.includes(role) ?? false
+//   const hasRole = (role: string) =>
+//     user?.roles?.includes(role) ?? false
 
-  const hasPermission = (permission: string) =>
-    user?.permissions?.includes(permission) ?? false
+//   const hasPermission = (permission: string) =>
+//     user?.permissions?.includes(permission) ?? false
+
+//   return (
+//     <AuthContext.Provider
+//       value={{
+//         user,
+//         loading,
+//         setUser,
+//         logout,
+//         hasRole,
+//         refreshUser,
+//         hasPermission
+//       }}
+//     >
+//       {children}
+//     </AuthContext.Provider>
+//   )
+// }
+
+// export const useAuth = () => {
+//   const ctx = useContext(AuthContext)
+//   if (!ctx) throw new Error("useAuth must be used inside AuthProvider")
+//   return ctx
+// }
+
+
+
+"use client";
+
+import api from "@/lib/axios";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+type User = {
+  id: number;
+  username: string;
+  email?: string | null;
+  roles: string[];
+
+  branch?: {
+    branchCode: string;
+    companyName?: string | null;
+    location?: string | null;
+  } | null;
+
+  permissions: string[];
+
+  agent?: {
+    id: string;
+    fullName: string;
+    agentCode: string;
+    level: string;
+    status: string;
+    accountType: string;
+    email?: string | null;
+    telephone?: string | null;
+  } | null;
+};
+
+type AuthContextType = {
+  user: User | null;
+  loading: boolean;
+  setUser: (
+    user: User | null
+  ) => void;
+  logout: () => Promise<void>;
+  hasRole: (
+    role: string
+  ) => boolean;
+  refreshUser: () => Promise<User | null>;
+  hasPermission: (
+    permission: string
+  ) => boolean;
+};
+
+const AuthContext =
+  createContext<AuthContextType | null>(
+    null
+  );
+
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [
+    user,
+    setUser,
+  ] = useState<User | null>(
+    null
+  );
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const refreshUser =
+    useCallback(
+      async (): Promise<User | null> => {
+        try {
+          const response =
+            await api.get<User>(
+              "/auth/me"
+            );
+
+          setUser(
+            response.data
+          );
+
+          return response.data;
+        } catch {
+          setUser(null);
+
+          return null;
+        }
+      },
+      []
+    );
+
+  useEffect(() => {
+    const initializeAuth =
+      async () => {
+        try {
+          await refreshUser();
+        } finally {
+          setLoading(false);
+        }
+      };
+
+    void initializeAuth();
+  }, [
+    refreshUser,
+  ]);
+
+  const logout =
+    async () => {
+      try {
+        await api.post(
+          "/auth/logout"
+        );
+      } finally {
+        setUser(null);
+
+        window.location.replace(
+          "/login"
+        );
+      }
+    };
+
+  const hasRole = (
+    role: string
+  ) =>
+    user?.roles?.includes(
+      role
+    ) ?? false;
+
+  const hasPermission = (
+    permission: string
+  ) =>
+    user?.permissions?.includes(
+      permission
+    ) ?? false;
 
   return (
     <AuthContext.Provider
@@ -105,16 +288,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         hasRole,
         refreshUser,
-        hasPermission
+        hasPermission,
       }}
     >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider")
-  return ctx
-}
+  const context =
+    useContext(
+      AuthContext
+    );
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
+  }
+
+  return context;
+};

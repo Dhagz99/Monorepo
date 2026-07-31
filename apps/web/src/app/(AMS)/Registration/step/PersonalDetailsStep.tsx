@@ -187,6 +187,103 @@ export default function PersonalDetailsStep({
                               </div>
               </div>
 
+              
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-custom-24 gap-y-custom-16 items-center justify-start w-full item-end">
+                      {/* USERNAME */}
+                    <div className=" flex flex-col gap-2 w-full col-span-1">
+                      <h6 className="text-neutralPrimary text-body">Set Username</h6>
+                      <input
+                        {...register(
+                          "username"
+                        )}
+                        placeholder="Username"
+                        className="
+                          border
+                          border-neutralPrimary
+                          rounded-lg
+                          px-4 py-3
+                        
+                        "
+                      />
+
+                      {errors.username && (
+                        <p className="text-negative text-sm">
+                          {
+                            errors
+                              .username
+                              .message
+                          }
+                        </p>
+                      )}
+                    </div>
+
+                                          {/* CONTACT */}
+                      <div className="relative flex flex-col gap-2 w-full
+                        md:col-span-2
+                        lg:col-span-1">
+                        <h6 className="text-neutralPrimary text-body">Primary Contact Number</h6>
+                        <input
+                          {...register(
+                            "agentTel"
+                          )}
+                  
+                          className="
+                            border
+                            border-neutralPrimary
+                            rounded-lg
+                            px-4 py-3
+                          "
+                        />
+                        {errors.agentTel && (
+                          <p className=" absolute
+                              -bottom-6
+                              left-0
+                              text-negative
+                              text-sm">
+                            {
+                              errors
+                                .agentTel
+                                .message
+                            }
+                          </p>
+                        )}
+                      </div>
+
+
+                      <div className="relative flex flex-col gap-2 w-full
+                        md:col-span-2
+                        lg:col-span-1">
+                        <h6 className="text-neutralPrimary text-body">Secondary Contact Number</h6>
+                        <input
+                          {...register(
+                            "agentSecTel"
+                          )}
+                  
+                          className="
+                            border
+                            border-neutralPrimary
+                            rounded-lg
+                            px-4 py-3
+                          "
+                        />
+                        {errors.agentSecTel && (
+                          <p className=" absolute
+                              -bottom-6
+                              left-0
+                              text-negative
+                              text-sm">
+                            {
+                              errors
+                                .agentSecTel
+                                .message
+                            }
+                          </p>
+                        )}
+                      </div>
+
+                   
+            </div>
+
               <div className="grid
                       grid-cols-1
                       md:grid-cols-2
@@ -195,7 +292,7 @@ export default function PersonalDetailsStep({
                       gap-y-custom-16
                       w-full items-end">
                       {/* ADDRESS */}
-                      <div className="relative flex flex-col gap-2">
+                      <div className="relative flex flex-col gap-2 col-span-2">
                         <h6 className="text-neutralPrimary text-body">Address</h6>
                         <input
                           {...register(
@@ -253,70 +350,9 @@ export default function PersonalDetailsStep({
                           </p>
                         )}
                       </div>
-                      {/* CONTACT */}
-                      <div className="relative flex flex-col gap-2 w-full
-                        md:col-span-2
-                        lg:col-span-1">
-                        <h6 className="text-neutralPrimary text-body">Contact Number</h6>
-                        <input
-                          {...register(
-                            "agentTel"
-                          )}
-                  
-                          className="
-                            border
-                            border-neutralPrimary
-                            rounded-lg
-                            px-4 py-3
-                          "
-                        />
-                        {errors.agentTel && (
-                          <p className=" absolute
-                              -bottom-6
-                              left-0
-                              text-negative
-                              text-sm">
-                            {
-                              errors
-                                .agentTel
-                                .message
-                            }
-                          </p>
-                        )}
-                      </div>
+
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-custom-24 gap-y-custom-16 items-center justify-start w-full item-end">
-                      {/* USERNAME */}
-                    <div className=" flex flex-col gap-2 w-full col-span-1">
-                      <h6 className="text-neutralPrimary text-body">Set Username</h6>
-                      <input
-                        {...register(
-                          "username"
-                        )}
-                        placeholder="Username"
-                        className="
-                          border
-                          border-neutralPrimary
-                          rounded-lg
-                          px-4 py-3
-                        
-                        "
-                      />
-
-                      {errors.username && (
-                        <p className="text-negative text-sm">
-                          {
-                            errors
-                              .username
-                              .message
-                          }
-                        </p>
-                      )}
-                    </div>
-
-                   
-            </div>
 
           <div className="sticky bottom-0 bg-neutralLight p-custom-16 rounded-lg w-full flex justify-end">
               <button

@@ -11,7 +11,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { MENU_SECTIONS } from "./menu.config";
 import { useRef, useState, useEffect } from "react";
-import { MenuItem, MenuSection } from "@repo/shared";
+import { MenuItem, MenuSection, ReactivationApprovalSocketBranchPayload } from "@repo/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMyReactivationApprovals } from "@/hooks/reactivation/useReactivation";
 import { socket } from "@/lib/socket";
@@ -36,12 +36,23 @@ export default function Sidebar({
   const [showArrow, setShowArrow] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [newTransactionCount, setNewTransactionCount] = useState(0);
+  const [branchReactivationResultCount,setBranchReactivationResultCount] = useState(0);
+
+  
 
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: approvalRequests } =
     useMyReactivationApprovals({});
+
+  const isAdmin =
+    user?.roles?.some((role) =>
+      ["ADMIN", "OPERATIONS"].includes(role)
+    ) ?? false;
+
+  const isBranchAccount =
+    user?.roles?.includes("BRANCH_ACC") ?? false;
 
   const pendingApprovalCount =
     approvalRequests?.data?.filter(
@@ -86,14 +97,17 @@ export default function Sidebar({
     };
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!user) return;
 
-    const isAdmin =
-      user.roles?.includes("ADMIN") ?? false;
+    const branchCode =
+      user.branch?.branchCode;
 
     if (user.agent?.id) {
-      socket.emit("join-agent-room", user.agent.id);
+      socket.emit(
+        "join-agent-room",
+        user.agent.id
+      );
 
       socket.emit(
         "join-upline-reactivation-room",
@@ -102,41 +116,101 @@ export default function Sidebar({
     }
 
     if (isAdmin) {
-      socket.emit("join-admin-reactivation-room");
-      socket.emit("join-admin-payment-room");
-      socket.emit("join-admin-withdraw-room");
+      socket.emit(
+        "join-admin-reactivation-room"
+      );
+
+      socket.emit(
+        "join-admin-payment-room"
+      );
+
+      socket.emit(
+        "join-admin-withdraw-room"
+      );
+    }
+
+    if (
+      isBranchAccount &&
+      branchCode
+    ) {
+      socket.emit(
+        "join-branch-reactivation-room",
+        branchCode
+      );
     }
 
     const handleNewReactivationApproval = () => {
       queryClient.invalidateQueries({
-        queryKey: ["my-reactivation-approvals"],
+        queryKey: [
+          "my-reactivation-approvals",
+        ],
+      });
+    };
+
+    const handleBranchReactivationUpdated = (
+      payload: ReactivationApprovalSocketBranchPayload
+    ) => {
+      if (
+        payload.status !== "APPROVED" &&
+        payload.status !== "REJECTED"
+      ) {
+        return;
+      }
+
+      setBranchReactivationResultCount(
+        (previous) => previous + 1
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: [
+          "my-reactivation-approvals",
+        ],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [
+          "reactivation-request-details",
+        ],
       });
     };
 
     const handleAdminPaymentUpdated = () => {
-      setNewTransactionCount((prev) => prev + 1);
+      setNewTransactionCount(
+        (previous) => previous + 1
+      );
 
       queryClient.invalidateQueries({
-        queryKey: ["admin-reactivation-payments"],
+        queryKey: [
+          "admin-reactivation-payments",
+        ],
       });
     };
 
     const handleAdminWithdrawUpdated = () => {
-      setNewTransactionCount((prev) => prev + 1);
+      setNewTransactionCount(
+        (previous) => previous + 1
+      );
 
       queryClient.invalidateQueries({
-        queryKey: ["admin-withdrawals"],
+        queryKey: [
+          "admin-withdrawals",
+        ],
       });
     };
 
     socket.on(
-      "admin-payment-updated",
-      handleAdminPaymentUpdated
+      "new-reactivation-approval",
+      handleNewReactivationApproval
     );
 
     socket.on(
-      "new-reactivation-approval",
-      handleNewReactivationApproval
+      "branch-reactivation-updated",
+      handleBranchReactivationUpdated
+    );
+
+    socket.on(
+      "admin-payment-updated",
+      handleAdminPaymentUpdated
     );
 
     socket.on(
@@ -151,6 +225,11 @@ export default function Sidebar({
       );
 
       socket.off(
+        "branch-reactivation-updated",
+        handleBranchReactivationUpdated
+      );
+
+      socket.off(
         "admin-payment-updated",
         handleAdminPaymentUpdated
       );
@@ -160,14 +239,31 @@ export default function Sidebar({
         handleAdminWithdrawUpdated
       );
     };
-  }, [user, queryClient]);
+  }, [
+    user,
+    isAdmin,
+    isBranchAccount,
+    queryClient,
+  ]);
+  
+  const reactivationBadgeCount =
+    isBranchAccount
+      ? branchReactivationResultCount
+      : pendingApprovalCount;
 
-  useEffect(() => {
-    if (pathname.startsWith("/Transaction")) {
-      setNewTransactionCount(0);
-    }
-  }, [pathname]);
+  const handleMenuClick = (
+      path?: string
+    ) => {
+      if (!path) return;
 
+      if (path.startsWith("/Reactivation")) {
+        setBranchReactivationResultCount(0);
+      }
+
+      if (path.startsWith("/Transaction")) {
+        setNewTransactionCount(0);
+      }
+    };
   return (
     <div
       className={`
@@ -225,7 +321,7 @@ export default function Sidebar({
         >
           {isOpen ? (
             <>
-              Initialize Clients <Cpu />
+              Initialize SSP <Cpu />
             </>
           ) : (
             <Cpu />
@@ -382,6 +478,9 @@ export default function Sidebar({
                     <li key={label}>
                       <Link
                         href={path!}
+                        onClick={() =>
+                          handleMenuClick(path)
+                        }
                         className={`
                           ${menuItemClass}
                           ${
@@ -420,32 +519,32 @@ export default function Sidebar({
                               `}
                             />
 
-                            {label === "Reactivation Request" &&
-                              pendingApprovalCount > 0 && (
-                                <span
-                                  className="
-                                    absolute
-                                    -top-3
-                                    -right-4
-                                    min-w-5
-                                    h-5
-                                    px-1
-                                    flex
-                                    items-center
-                                    justify-center
-                                    rounded-full
-                                    bg-negative
-                                    text-white
-                                    text-[10px]
-                                    font-bold
-                                    leading-none
-                                  "
-                                >
-                                  {pendingApprovalCount > 99
-                                    ? "99+"
-                                    : pendingApprovalCount}
-                                </span>
-                              )}
+                          {label === "Reactivation Request" &&
+                            reactivationBadgeCount > 0 && (
+                              <span
+                                className="
+                                  absolute
+                                  -top-3
+                                  -right-4
+                                  min-w-5
+                                  h-5
+                                  px-1
+                                  flex
+                                  items-center
+                                  justify-center
+                                  rounded-full
+                                  bg-negative
+                                  text-white
+                                  text-[10px]
+                                  font-bold
+                                  leading-none
+                                "
+                              >
+                                {reactivationBadgeCount > 99
+                                  ? "99+"
+                                  : reactivationBadgeCount}
+                              </span>
+                            )}
 
                             {label === "E-wallet Transaction" &&
                               newTransactionCount > 0 && (

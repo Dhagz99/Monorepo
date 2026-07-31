@@ -25,23 +25,23 @@ export default function ReassignmentPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+
   const currentPage = Number(
     searchParams.get("page") || "1"
   );
 
-  const searchParam =
-    searchParams.get("search") || "";
+  const searchParam = searchParams.get("search") || "";
+
 
   const [search, setSearch] =
     useState(searchParam);
 
-  const [debouncedSearch, setDebouncedSearch] =
-    useState(searchParam);
 
   const [
     selectedDroppedAgentId,
     setSelectedDroppedAgentId,
   ] = useState<string | null>(null);
+  
 
   const [
     selectedDownlineIds,
@@ -90,7 +90,7 @@ export default function ReassignmentPage() {
     useDroppedAgents({
       page: currentPage,
       limit: 10,
-      search: debouncedSearch || undefined,
+      search: search || undefined,
     });
 
   const droppedAgents = data?.data ?? [];
@@ -98,8 +98,9 @@ export default function ReassignmentPage() {
 
   const filteredUplines =
     availableUplines.filter((upline) => {
-      const keyword =
-        uplineSearch.toLowerCase();
+      const keyword = uplineSearch
+        .trim()
+        .toLowerCase();
 
       return (
         upline.fullName
@@ -111,70 +112,48 @@ export default function ReassignmentPage() {
       );
     });
 
-  const selectedUpline =
-    availableUplines.find(
-      (upline) => upline.id === newUplineId
-    );
+  /*
+   * Reset the selected upline whenever the selected
+   * downlines are changed by a user action.
+   */
+  const resetUplineSelection = () => {
+    setNewUplineId("");
+    setUplineSearch("");
+    setShowUplineOptions(false);
+  };
 
   const handleOpenReassignment = (
     droppedAgentId: string
   ) => {
     setSelectedDroppedAgentId(droppedAgentId);
     setSelectedDownlineIds([]);
-    setNewUplineId("");
-    setUplineSearch("");
-    setShowUplineOptions(false);
+    resetUplineSelection();
   };
 
   const handleCloseReassignment = () => {
     setSelectedDroppedAgentId(null);
     setSelectedDownlineIds([]);
-    setNewUplineId("");
-    setUplineSearch("");
-    setShowUplineOptions(false);
+    resetUplineSelection();
   };
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 500);
 
-    return () => clearTimeout(timeout);
-  }, [search]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(
-      searchParams.toString()
-    );
-
-    if (debouncedSearch) {
-      params.set("search", debouncedSearch);
-    } else {
-      params.delete("search");
-    }
-
-    params.set("page", "1");
-
-    router.replace(
-      `${pathname}?${params.toString()}`
-    );
-  }, [debouncedSearch, pathname, router]);
-
-  useEffect(() => {
-    setNewUplineId("");
-    setUplineSearch("");
-    setShowUplineOptions(false);
-  }, [selectedDownlineIds]);
-
+  /*
+   * Close the upline dropdown when clicking outside.
+   */
   useEffect(() => {
     const handleClickOutside = (
       event: MouseEvent
     ) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
       if (
         uplineDropdownRef.current &&
-        !uplineDropdownRef.current.contains(
-          event.target as Node
-        )
+        !uplineDropdownRef.current.contains(target)
       ) {
         setShowUplineOptions(false);
       }
@@ -193,41 +172,86 @@ export default function ReassignmentPage() {
     };
   }, []);
 
-  const updateQueryParams = (
-    nextPage: number
-  ) => {
-    const params = new URLSearchParams(
-      searchParams.toString()
-    );
+    const updateQueryParams = (
+        nextPage: number
+        ) => {
+        const params =
+            new URLSearchParams(
+            searchParams.toString()
+            );
 
-    params.set("page", String(nextPage));
+        params.set(
+            "page",
+            String(nextPage)
+        );
 
-    if (debouncedSearch) {
-      params.set("search", debouncedSearch);
-    } else {
-      params.delete("search");
-    }
+        if (search.trim()) {
+            params.set(
+            "search",
+            search.trim()
+            );
+        } else {
+            params.delete("search");
+        }
 
-    router.replace(
-      `${pathname}?${params.toString()}`
-    );
-  };
+        router.replace(
+            `${pathname}?${params.toString()}`
+        );
+        };
+    
 
   const toggleDownline = (
     downlineId: string,
     checked: boolean
   ) => {
-    if (checked) {
-      setSelectedDownlineIds((prev) => [
-        ...prev,
-        downlineId,
-      ]);
-    } else {
-      setSelectedDownlineIds((prev) =>
-        prev.filter((id) => id !== downlineId)
+    setSelectedDownlineIds((previous) => {
+      if (checked) {
+        /*
+         * Prevent duplicate IDs.
+         */
+        if (previous.includes(downlineId)) {
+          return previous;
+        }
+
+        return [...previous, downlineId];
+      }
+
+      return previous.filter(
+        (id) => id !== downlineId
       );
-    }
+    });
+
+    resetUplineSelection();
   };
+
+  const handleSelectAllDownlines = () => {
+    setSelectedDownlineIds(
+      downlines.map((downline) => downline.id)
+    );
+
+    resetUplineSelection();
+  };
+
+  const handleConfirmReassignment =
+    async () => {
+      if (
+        !selectedDroppedAgentId ||
+        !newUplineId ||
+        selectedDownlineIds.length === 0
+      ) {
+        return;
+      }
+
+      await reassignMutation.mutateAsync({
+        droppedAgentId:
+          selectedDroppedAgentId,
+        newUplineId,
+        downlineAgentIds:
+          selectedDownlineIds,
+      });
+
+      handleCloseReassignment();
+    };
 
   return (
     <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48">
@@ -239,19 +263,51 @@ export default function ReassignmentPage() {
 
         <div className="w-full flex justify-end">
           <input
-            type="text"
-            placeholder="Search..."
-            value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
-            className="
-              max-w-80 min-w-80 h-custom-48 rounded-md border
-              border-slate-300 px-4 outline-none focus:ring-1
-              focus:ring-mainPrimary focus:border-mainPrimary
-              transition shadow-sm
-            "
-          />
+                        type="text"
+                        placeholder="Search..."
+                        value={search}
+                        onChange={(e) => {
+                            const value =
+                            e.target.value;
+
+                            setSearch(value);
+
+                            const params =
+                            new URLSearchParams(
+                                searchParams.toString()
+                            );
+
+                            if (value.trim()) {
+                            params.set(
+                                "search",
+                                value
+                            );
+                            } else {
+                            params.delete("search");
+                            }
+
+                            params.set("page", "1");
+
+                            router.replace(
+                            `${pathname}?${params.toString()}`
+                            );
+                        }}
+                        className="
+                            max-w-80
+                            min-w-80
+                            h-custom-48
+                            rounded-md
+                            border
+                            border-slate-300
+                            px-4
+                            outline-none
+                            focus:ring-1
+                            focus:ring-mainPrimary
+                            focus:border-mainPrimary
+                            transition
+                            shadow-sm
+                        "
+                        />
         </div>
       </div>
 
@@ -262,18 +318,23 @@ export default function ReassignmentPage() {
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Agent Code
               </th>
+
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Full Name
               </th>
+
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Level
               </th>
+
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Status
               </th>
+
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Downlines
               </th>
+
               <th className="text-left px-custom-24 py-5 font-semibold">
                 Action
               </th>
@@ -305,8 +366,8 @@ export default function ReassignmentPage() {
                   colSpan={6}
                   className="px-4 py-6 text-center text-sm text-slate-500"
                 >
-                  {debouncedSearch
-                    ? `No dropped agents found for "${debouncedSearch}".`
+                  {search
+                    ? `No dropped agents found for "${search}".`
                     : "No dropped agents found."}
                 </td>
               </tr>
@@ -424,7 +485,8 @@ export default function ReassignmentPage() {
               </h1>
 
               <p className="text-sm text-neutralPrimary">
-                Select affected downlines first, then choose a valid new upline.
+                Select affected downlines first,
+                then choose a valid new upline.
               </p>
             </div>
 
@@ -456,95 +518,82 @@ export default function ReassignmentPage() {
                     }
 
                     setShowUplineOptions(
-                      (prev) => !prev
+                      (previous) => !previous
                     );
                   }}
-                  onChange={(e) => {
-                    setUplineSearch(e.target.value);
+                  onChange={(event) => {
+                    setUplineSearch(
+                      event.target.value
+                    );
                     setShowUplineOptions(true);
                     setNewUplineId("");
                   }}
                   className="
-                    h-custom-48
-                    rounded-md
-                    border
-                    border-slate-300
-                    px-4
-                    outline-none
-                    focus:ring-1
-                    focus:ring-mainPrimary
-                    disabled:bg-slate-100
+                    h-custom-48 rounded-md border border-slate-300
+                    px-4 outline-none focus:ring-1
+                    focus:ring-mainPrimary disabled:bg-slate-100
                     disabled:cursor-not-allowed
                   "
                 />
 
-
                 {showUplineOptions && (
                   <div
                     className="
-                      absolute
-                      top-19
-                      z-50
-                      w-full
-                      max-h-64
-                      overflow-y-auto
-                      rounded-md
-                      border
-                      border-slate-200
-                      bg-white
-                      shadow-lg
+                      absolute top-19 z-50 w-full max-h-64
+                      overflow-y-auto rounded-md border
+                      border-slate-200 bg-white shadow-lg
                     "
                   >
                     {isLoadingUplines ? (
                       <div className="px-4 py-3 text-sm text-slate-500">
                         Loading uplines...
                       </div>
-                    ) : filteredUplines.length === 0 ? (
+                    ) : filteredUplines.length ===
+                      0 ? (
                       <div className="px-4 py-3 text-sm text-slate-500">
-                        No valid uplines found for the selected downlines.
+                        No valid uplines found for
+                        the selected downlines.
                       </div>
                     ) : (
-                      filteredUplines.map((upline) => (
-                        <button
-                          key={upline.id}
-                          type="button"
-                          onClick={() => {
-                            setNewUplineId(upline.id);
-                            setUplineSearch(
-                              `${upline.fullName} - ${upline.agentCode}`
-                            );
-                            setShowUplineOptions(false);
-                          }}
-                          className="
-                            w-full
-                            px-4
-                            py-3
-                            text-left
-                            hover:bg-slate-50
-                            border-b
-                            border-slate-100
-                          "
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-neutralPrimary">
-                              {upline.fullName}
-                            </span>
+                      filteredUplines.map(
+                        (upline) => (
+                          <button
+                            key={upline.id}
+                            type="button"
+                            onClick={() => {
+                              setNewUplineId(
+                                upline.id
+                              );
 
-                            <span className="text-xs text-slate-500">
-                              {upline.agentCode} •{" "}
-                              {upline.level} •{" "}
-                              {upline.status}
-                            </span>
+                              setUplineSearch(
+                                `${upline.fullName} - ${upline.agentCode}`
+                              );
 
-                            <span className="text-xs text-slate-400">
-                              L2 slots:{" "}
-                              {upline.availableL2Slots} •
-                              L3 slots:{" "}
-                              {upline.availableL3Slots}
-                            </span>
-                          </div>
-                        </button>
-                      ))
+                              setShowUplineOptions(
+                                false
+                              );
+                            }}
+                            className="
+                              w-full px-4 py-3 text-left
+                              hover:bg-slate-50 border-b
+                              border-slate-100
+                            "
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-neutralPrimary">
+                                {upline.fullName}
+                              </span>
+
+                              <span className="text-xs text-slate-500">
+                                {upline.agentCode} •{" "}
+                                {upline.level} •{" "}
+                                {upline.status}
+                              </span>
+                             
+                            </div>
+                          </button>
+                        )
+                      )
                     )}
                   </div>
                 )}
@@ -558,14 +607,17 @@ export default function ReassignmentPage() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelectedDownlineIds(
-                        downlines.map(
-                          (downline) => downline.id
-                        )
-                      )
+                    disabled={
+                      downlines.length === 0
                     }
-                    className="text-xs font-semibold text-mainPrimary"
+                    onClick={
+                      handleSelectAllDownlines
+                    }
+                    className="
+                      text-xs font-semibold text-mainPrimary
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                    "
                   >
                     Select All
                   </button>
@@ -591,24 +643,18 @@ export default function ReassignmentPage() {
                         <label
                           key={downline.id}
                           className="
-                            flex
-                            items-center
-                            gap-x-3
-                            px-4
-                            py-3
-                            border-b
-                            border-slate-100
-                            cursor-pointer
+                            flex items-center gap-x-3 px-4 py-3
+                            border-b border-slate-100 cursor-pointer
                             hover:bg-slate-50
                           "
                         >
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={(e) =>
+                            onChange={(event) =>
                               toggleDownline(
                                 downline.id,
-                                e.target.checked
+                                event.target.checked
                               )
                             }
                           />
@@ -637,13 +683,9 @@ export default function ReassignmentPage() {
                 type="button"
                 onClick={handleCloseReassignment}
                 className="
-                  rounded-md
-                  border
-                  border-slate-300
-                  px-custom-16
-                  py-custom-8
-                  text-sm
-                  font-semibold
+                  rounded-md border border-slate-300
+                  px-custom-16 py-custom-8
+                  text-sm font-semibold
                 "
               >
                 Cancel
@@ -656,26 +698,13 @@ export default function ReassignmentPage() {
                   selectedDownlineIds.length === 0 ||
                   reassignMutation.isPending
                 }
-                onClick={async () => {
-                  await reassignMutation.mutateAsync({
-                    droppedAgentId:
-                      selectedDroppedAgentId,
-                    newUplineId,
-                    downlineAgentIds:
-                      selectedDownlineIds,
-                  });
-
-                  handleCloseReassignment();
-                }}
+                onClick={
+                  handleConfirmReassignment
+                }
                 className="
-                  rounded-md
-                  bg-positive
-                  px-custom-16
-                  py-custom-8
-                  text-sm
-                  font-semibold
-                  text-white
-                  disabled:cursor-not-allowed
+                  rounded-md bg-positive px-custom-16
+                  py-custom-8 text-sm font-semibold
+                  text-white disabled:cursor-not-allowed
                   disabled:opacity-50
                 "
               >

@@ -3,6 +3,7 @@ import {
   Response,
 } from "express";
 import { createCommissionScan, scannedAgent, updateCommissionRuleService } from "./commission.service";
+import { WithdrawalStatus } from "../../../generated/prisma";
 
 
 export const scannedAgentController =
@@ -69,32 +70,57 @@ export const scannedAgentController =
 
 
 
-  export const createCommissionScanController =
+export const createCommissionScanController =
   async (
     req: Request,
     res: Response
   ) => {
-
     try {
-
       const {
         clientId,
         agentId,
         branchId,
         scannedBy,
+        payoutChannel,
+        gcashNumber,
+        checkNumber,
       } = req.body;
 
       if (
         !clientId ||
         !agentId ||
-        !branchId
+        !branchId ||
+        !scannedBy
       ) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "clientId, agentId and branchId are required",
-          });
+        return res.status(400).json({
+          message:
+            "clientId, agentId, branchId, and scannedBy are required.",
+        });
+      }
+
+      if (
+        payoutChannel !== "GCASH" &&
+        payoutChannel !== "CHECK"
+      ) {
+        return res.status(400).json({
+          message:
+            "Payout channel must be GCASH or CHECK.",
+        });
+      }
+
+      const normalizedCheckNumber =
+        typeof checkNumber === "string"
+          ? checkNumber.trim()
+          : "";
+
+      if (
+        payoutChannel === "CHECK" &&
+        !normalizedCheckNumber
+      ) {
+        return res.status(400).json({
+          message:
+            "Check number is required for CHECK payouts.",
+        });
       }
 
       const result =
@@ -103,35 +129,56 @@ export const scannedAgentController =
           agentId,
           branchId,
           scannedBy,
+          payoutChannel,
+          gcashNumber: 
+            payoutChannel === "GCASH"
+            ? gcashNumber
+            : undefined,
+          checkNumber:
+            payoutChannel === "CHECK"
+              ? normalizedCheckNumber
+              : undefined,
         });
 
-      return res
-        .status(201)
-        .json({
+        return res.status(201).json({
+          success: true,
           message:
-            "Commission successfully created",
+            result.payoutStatus ===
+            WithdrawalStatus.FAILED
+              ? "Commission created, but the GCash payout failed."
+              : "Commission created successfully.",
           data: result,
         });
-
     } catch (error) {
-
       console.error(
         "CREATE COMMISSION ERROR:",
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to create commission",
-        });
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to create commission.";
+
+      const badRequestErrors = [
+        "Agent not found",
+        "Client not found",
+        "Invalid payout channel",
+        "Check number is required for CHECK payouts",
+        "No active maintenance cycle found",
+        "No active probation request found",
+      ];
+
+      const statusCode =
+        badRequestErrors.includes(message)
+          ? 400
+          : 500;
+
+      return res.status(statusCode).json({
+        message,
+      });
     }
   };
-
-
 
 
 

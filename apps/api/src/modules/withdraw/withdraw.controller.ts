@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { approveWithdrawalRequestService, createMyWithdrawalRequestService, handleXenditDisbursementWebhook, rejectWithdrawalService, retryWithdrawalRequestService } from "./withdraw.service";
+import { approveWithdrawalRequestService, createMyWithdrawalRequestService, rejectWithdrawalService, retryWithdrawalRequestService } from "./withdraw.service";
 import { xenditConfig } from "../../config/xendit.config";
 
 
@@ -115,31 +115,31 @@ export const rejectWithdrawalController = async (
 
 
 
-export const handleWithdrawalWebhookController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const callbackToken = req.headers["x-callback-token"];
+// export const handleWithdrawalWebhookController = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const callbackToken = req.headers["x-callback-token"];
 
-    const token = Array.isArray(callbackToken)
-      ? callbackToken[0]
-      : callbackToken;
+//     const token = Array.isArray(callbackToken)
+//       ? callbackToken[0]
+//       : callbackToken;
 
-    if (!token || token !== xenditConfig.webhookToken) {
-      return res.status(401).json({
-        message: "Invalid Xendit webhook token.",
-      });
-    }
+//     if (!token || token !== xenditConfig.webhookToken) {
+//       return res.status(401).json({
+//         message: "Invalid Xendit webhook token.",
+//       });
+//     }
 
-    const result = await handleXenditDisbursementWebhook(req.body);
+//     const result = await handleXenditDisbursementWebhook(req.body);
 
-    return res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       data: result,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };

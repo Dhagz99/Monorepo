@@ -84,8 +84,6 @@ export interface AvailableReassignmentUpline {
   fullName: string;
   level: string;
   status: string;
-  availableL2Slots: number;
-  availableL3Slots: number;
 }
 
 export interface GetAvailableReassignmentUplinesResponse {

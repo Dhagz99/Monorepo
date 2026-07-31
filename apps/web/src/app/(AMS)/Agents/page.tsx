@@ -1,6 +1,6 @@
 "use client"
 
-import { useDroppedorSuspendedAgentStatus, useMasterlistAgents } from "@/hooks/agents/useAgent";
+import { useAgentEditDetails, useDroppedorSuspendedAgentStatus, useMasterlistAgents, useUpdateAgentDetails } from "@/hooks/agents/useAgent";
 // import SweetAlert from "@/components/modal/Swal";
 // import Swal from "sweetalert2";
 import { useEffect, useState } from "react";
@@ -23,6 +23,10 @@ import SweetAlert from "@/components/modal/Swal";
 import Swal from "sweetalert2";
 import AppsTab from "@/components/ui/commonUi/general.tab";
 import { useDebounce } from "@/components/helper/useDebounse";
+import MainModal from "@/components/modal/mainModal";
+import Image from "next/image";
+import { AgentFormState, emptyAgentForm, UpdateAgentDetailsPayload } from "@repo/shared";
+import axios from "axios";
 
 
 
@@ -47,6 +51,20 @@ export default function Masterlist() {
   const searchParam = searchParams.get("search") ?? "";
 
   const [search, setSearch] = useState(searchParam);
+
+  const [
+    isEditModalOpen,
+    setIsEditModalOpen,
+  ] =
+    useState(false);
+
+  const [
+    selectedAgentId,
+    setSelectedAgentId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -113,6 +131,38 @@ export default function Masterlist() {
     search,
     status: activeTab,
   });
+
+
+  const {
+    data:
+      selectedAgentDetails,
+
+    isLoading:
+      isLoadingAgentDetails,
+
+    isError:
+      isAgentDetailsError,
+  } =
+    useAgentEditDetails(
+      selectedAgentId
+    );
+
+  const {
+    mutateAsync:
+      updateAgent,
+
+    isPending:
+      isUpdatingAgent,
+  } =
+    useUpdateAgentDetails();
+
+  const [
+    agentForm,
+    setAgentForm,
+  ] =
+    useState<AgentFormState>(
+      emptyAgentForm
+    );
 
 
   const updateQueryParams = (
@@ -187,6 +237,27 @@ export default function Masterlist() {
     );
   };
 
+  const handleEditAgent = (
+    agentId: string
+  ) => {
+    setSelectedAgentId(
+      agentId
+    );
+
+    setIsEditModalOpen(
+      true
+    );
+  };
+
+  const handleCloseEditAgent = () => {
+    setIsEditModalOpen(
+      false
+    );
+
+    setSelectedAgentId(
+      null
+    );
+  };
 
   const TABS: {
     key: TABKEY;
@@ -234,6 +305,169 @@ export default function Masterlist() {
       scroll: false,
     });
   };
+
+  const handleUpdateAgent =
+  async (
+    event:
+      React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    if (!selectedAgentId) {
+      return;
+    }
+
+    if (
+      !agentForm.fullName.trim()
+    ) {
+      SweetAlert.errorAlert(
+        "Validation Error",
+        "Agent full name is required."
+      );
+
+      return;
+    }
+
+    const payload: UpdateAgentDetailsPayload = {
+      fullName:
+        agentForm.fullName.trim(),
+
+      username:
+        agentForm.username.trim() ||
+        null,
+
+      level:
+        agentForm.level as UpdateAgentDetailsPayload["level"],
+
+      status:
+        agentForm.status as UpdateAgentDetailsPayload["status"],
+
+      gender:
+        agentForm.gender
+          ? agentForm.gender as UpdateAgentDetailsPayload["gender"]
+          : null,
+
+      birthDate:
+        agentForm.birthDate ||
+        null,
+
+      address:
+        agentForm.address.trim() ||
+        null,
+
+      email:
+        agentForm.email.trim() ||
+        null,
+
+      telephone:
+        agentForm.telephone.trim() ||
+        null,
+
+      secondaryTel:
+        agentForm.secondaryTel.trim() ||
+        null,
+    };
+
+    try {
+      SweetAlert.loadingAlert(
+        "Updating Agent",
+        "Please wait..."
+      );
+
+      await updateAgent({
+        agentId:
+          selectedAgentId,
+
+        payload,
+      });
+
+      Swal.close();
+
+      await SweetAlert.successAlert(
+        "Update Successful",
+        "Agent information updated successfully."
+      );
+
+      handleCloseEditAgent();
+    } catch (
+      error: unknown
+    ) {
+      Swal.close();
+
+      let errorMessage =
+        "Unable to update agent information.";
+
+      if (
+        axios.isAxiosError<{
+          message?: string;
+        }>(error)
+      ) {
+        errorMessage =
+          error.response?.data?.message ??
+          errorMessage;
+      } else if (
+        error instanceof Error
+      ) {
+        errorMessage =
+          error.message;
+      }
+
+      SweetAlert.errorAlert(
+        "Update Failed",
+        errorMessage
+      );
+    }
+  };
+
+
+  useEffect(() => {
+      if (
+        !selectedAgentDetails
+      ) {
+        return;
+      }
+
+      setAgentForm({
+        fullName:
+          selectedAgentDetails.fullName,
+
+        username:
+          selectedAgentDetails.username ??
+          "",
+
+        level:
+          selectedAgentDetails.level,
+
+        status:
+          selectedAgentDetails.status,
+
+        gender:
+          selectedAgentDetails.gender ??
+          "",
+
+        birthDate:
+          selectedAgentDetails.birthDate ??
+          "",
+
+        address:
+          selectedAgentDetails.address ??
+          "",
+
+        email:
+          selectedAgentDetails.email ??
+          "",
+
+        telephone:
+          selectedAgentDetails.telephone ??
+          "",
+
+        secondaryTel:
+          selectedAgentDetails.secondaryTel ??
+          "",
+      });
+    }, [
+      selectedAgentDetails,
+    ]);
     
   return (
      <div className="w-full flex flex-col gap-y-custom-32 px-custom-32 py-custom-48">
@@ -433,29 +667,32 @@ export default function Masterlist() {
                     <div className="flex items-center gap-3">
 
 
-                        <button
+                      <button
+                        type="button"
                         title="Edit Details"
                         onClick={() =>
-                            console.log(agent.id)
+                          handleEditAgent(
+                            agent.id
+                          )
                         }
                         className="
-                            px-custom-8
-                            py-custom-8
-                            rounded-xl
-                            bg-secondary
-                            hover:bg-amber-500
-                            cursor-pointer
-                            text-white
-                            inline-flex
-                            items-end
-                            gap-custom-8
-                            text-xs
-                            font-semibold
-                            transition
+                          px-custom-8
+                          py-custom-8
+                          rounded-xl
+                          bg-secondary
+                          hover:bg-amber-500
+                          cursor-pointer
+                          text-white
+                          inline-flex
+                          items-end
+                          gap-custom-8
+                          text-xs
+                          font-semibold
+                          transition
                         "
-                        >
-                        <Edit size={20}/>
-                        </button>
+                      >
+                        <Edit size={20} />
+                      </button>
 
 
                         <button
@@ -700,6 +937,618 @@ export default function Masterlist() {
       </div>
 
     </div>
+
+   {isEditModalOpen && (
+  <MainModal
+    size="lg"
+    onClose={
+      handleCloseEditAgent
+    }
+  >
+    <div className="flex flex-col gap-custom-16">
+      <div
+        className="
+          flex
+          w-full
+          items-start
+          justify-start
+          rounded-t-xl
+          bg-mainPrimary
+          px-custom-32
+          py-custom-16
+        "
+      >
+        <Image
+          src="/images/AMSLOGO.svg"
+          alt="JameroGroupOfCompanies"
+          width={160}
+          height={160}
+          priority
+        />
+      </div>
+
+      <div className="flex flex-col gap-y-custom-8 px-custom-32">
+        <h1 className="text-mdHeader font-bold text-mainPrimary">
+          Agent Information
+        </h1>
+
+        <p className="text-sm text-neutralPrimary">
+          Update or configure the selected agent&apos;s information.
+        </p>
+      </div>
+
+      {isLoadingAgentDetails && (
+        <div className="px-custom-32 pb-custom-32">
+          <div className="flex items-center gap-3 text-mainPrimary">
+            <div
+              className="
+                h-5
+                w-5
+                animate-spin
+                rounded-full
+                border-2
+                border-mainPrimary
+                border-t-transparent
+              "
+            />
+
+            <span>
+              Loading agent information...
+            </span>
+          </div>
+        </div>
+      )}
+
+      {isAgentDetailsError && (
+        <div className="px-custom-32 pb-custom-32">
+          <div
+            className="
+              rounded-lg
+              bg-red-50
+              px-custom-16
+              py-custom-16
+              text-negative
+            "
+          >
+            Unable to load agent information.
+          </div>
+        </div>
+      )}
+
+      {!isLoadingAgentDetails &&
+        selectedAgentDetails && (
+          <form
+            onSubmit={
+              handleUpdateAgent
+            }
+            className="
+              flex
+              max-h-[65vh]
+              flex-col
+              gap-y-custom-20
+              overflow-y-auto
+              px-custom-32
+              pb-custom-32
+            "
+          >
+            <div className="grid grid-cols-1 gap-custom-16 md:grid-cols-2">
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentFullName"
+                  className="text-xs font-bold"
+                >
+                  Full Name
+                </label>
+
+                <input
+                  id="agentFullName"
+                  type="text"
+                  value={
+                    agentForm.fullName
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        fullName:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentCode"
+                  className="text-xs font-bold"
+                >
+                  Agent Code
+                </label>
+
+                <input
+                  id="agentCode"
+                  type="text"
+                  readOnly
+                  value={
+                    selectedAgentDetails.agentCode
+                  }
+                  className="
+                    cursor-not-allowed
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-gray-100
+                    px-custom-16
+                    py-3
+                    opacity-70
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentUsername"
+                  className="text-xs font-bold"
+                >
+                  Username
+                </label>
+
+                <input
+                  id="agentUsername"
+                  type="text"
+                  value={
+                    agentForm.username
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        username:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentLevel"
+                  className="text-xs font-bold"
+                >
+                  Level
+                </label>
+
+                <select
+                  id="agentLevel"
+                  value={
+                    agentForm.level
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        level:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                >
+                  <option value="L1">
+                    L1
+                  </option>
+
+                  <option value="L2">
+                    L2
+                  </option>
+
+                  <option value="L3">
+                    L3
+                  </option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentStatus"
+                  className="text-xs font-bold"
+                >
+                  Status
+                </label>
+
+                <select
+                  id="agentStatus"
+                  value={
+                    agentForm.status
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        status:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                >
+                  <option value="ACTIVE">
+                    Active
+                  </option>
+
+                  <option value="PROBATION">
+                    Probation
+                  </option>
+
+                  <option value="EXPIRED">
+                    Expired
+                  </option>
+
+                  <option value="SUSPENDED">
+                    Suspended
+                  </option>
+
+                  <option value="DROPPED">
+                    Dropped
+                  </option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentGender"
+                  className="text-xs font-bold"
+                >
+                  Gender
+                </label>
+
+                <select
+                  id="agentGender"
+                  value={
+                    agentForm.gender
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        gender:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                >
+                  <option value="">
+                    Select gender
+                  </option>
+
+                  <option value="MALE">
+                    Male
+                  </option>
+
+                  <option value="FEMALE">
+                    Female
+                  </option>
+
+                
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentBirthDate"
+                  className="text-xs font-bold"
+                >
+                  Birth Date
+                </label>
+
+                <input
+                  id="agentBirthDate"
+                  type="date"
+                  value={
+                    agentForm.birthDate
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        birthDate:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentEmail"
+                  className="text-xs font-bold"
+                >
+                  Email
+                </label>
+
+                <input
+                  id="agentEmail"
+                  type="email"
+                  value={
+                    agentForm.email
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        email:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentTelephone"
+                  className="text-xs font-bold"
+                >
+                  Primary Telephone
+                </label>
+
+                <input
+                  id="agentTelephone"
+                  type="tel"
+                  value={
+                    agentForm.telephone
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        telephone:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8">
+                <label
+                  htmlFor="agentSecondaryTel"
+                  className="text-xs font-bold"
+                >
+                  Secondary Telephone
+                </label>
+
+                <input
+                  id="agentSecondaryTel"
+                  type="tel"
+                  value={
+                    agentForm.secondaryTel
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        secondaryTel:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+
+              <div className="flex flex-col gap-y-custom-8 md:col-span-2">
+                <label
+                  htmlFor="agentAddress"
+                  className="text-xs font-bold"
+                >
+                  Address
+                </label>
+
+                <textarea
+                  id="agentAddress"
+                  rows={3}
+                  value={
+                    agentForm.address
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setAgentForm(
+                      (
+                        current
+                      ) => ({
+                        ...current,
+
+                        address:
+                          event.target.value,
+                      })
+                    )
+                  }
+                  className="
+                    resize-none
+                    rounded-lg
+                    border
+                    border-neutralMed
+                    bg-neutralLight
+                    px-custom-16
+                    py-3
+                  "
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-custom-16 border-t border-neutralMed pt-custom-16">
+              <button
+                type="button"
+                onClick={
+                  handleCloseEditAgent
+                }
+                disabled={
+                  isUpdatingAgent
+                }
+                className="
+                  rounded-lg
+                  border
+                  border-neutralMed
+                  px-custom-24
+                  py-3
+                  font-semibold
+                  text-neutralPrimary
+                  cursor-pointer
+                  hover:bg-neutralLight
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  isUpdatingAgent
+                }
+                className="
+                  rounded-lg
+                  bg-mainPrimary
+                  px-custom-24
+                  py-3
+                  font-semibold
+                  text-white
+                  cursor-pointer
+                  hover:bg-lightPrimary
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
+              >
+                {isUpdatingAgent
+                  ? "Updating Agent..."
+                  : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        )}
+    </div>
+  </MainModal>
+)}
 
     </div>
   );

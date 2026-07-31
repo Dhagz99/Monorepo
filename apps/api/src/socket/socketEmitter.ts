@@ -1,6 +1,6 @@
 // src/socket/socketEmitter.ts
 
-import { AdminReactivationPaymentSocketPayload, AdminReactivationWithdrawSocketPayload, NotificationPayload, ReactivationApprovalSocketPayload } from "@repo/shared";
+import { AdminReactivationPaymentSocketPayload, AdminReactivationWithdrawSocketPayload, NotificationPayload, ReactivationApprovalSocketBranchPayload, ReactivationApprovalSocketPayload } from "@repo/shared";
 import { getIO } from "./index";
 
 
@@ -44,6 +44,17 @@ export const emitUplineReactivationApproval = (
   );
 };
 
+export const emitBranchReactivationApproval = (
+  branchCode: string,
+  payload: ReactivationApprovalSocketBranchPayload
+) => {
+  const io = getIO();
+
+  io.to(`branch:${branchCode}`).emit(
+    "branch-reactivation-updated",
+    payload
+  );
+};
 
 export const emitAdminPaymentUpdated = (
   payload: AdminReactivationPaymentSocketPayload

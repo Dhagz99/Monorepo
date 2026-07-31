@@ -2,30 +2,156 @@
 
 import MainModal from "@/components/modal/mainModal";
 import SweetAlert from "@/components/modal/Swal";
-import { OverrideCommissionRule } from "@repo/shared";
-import { useState } from "react";
+import { useCreateOverrideRule, useDeleteOverrideRule, useUpdateOverrideRule } from "@/hooks/general/useGeneral";
+
+import {
+  OverrideCommissionRule,
+} from "@repo/shared";
+import axios from "axios";
+
+import {
+  FormEvent,
+  useState,
+} from "react";
+
 import Swal from "sweetalert2";
 
 interface Props {
   rules: OverrideCommissionRule[];
 }
 
+type RuleFormState = {
+  receiverLevel: string;
+  sourceLevel: string;
+  amount: string;
+};
+
+const emptyForm: RuleFormState = {
+  receiverLevel: "",
+  sourceLevel: "",
+  amount: "",
+};
+
 export default function OverrideRules({
   rules,
 }: Props) {
+  const [
+    openModal,
+    setOpenModal,
+  ] = useState(false);
 
-  const [openModal, setOpenModal] =
-    useState(false);
-
-  const [selectedRule, setSelectedRule] =
+  const [
+    selectedRule,
+    setSelectedRule,
+  ] =
     useState<OverrideCommissionRule | null>(
       null
     );
 
-  const handleSave = async () => {
+  const [
+    form,
+    setForm,
+  ] =
+    useState<RuleFormState>(
+      emptyForm
+    );
+
+  const {
+    mutateAsync:
+      createRule,
+    isPending:
+      isCreating,
+  } =
+    useCreateOverrideRule();
+
+  const {
+    mutateAsync:
+      updateRule,
+    isPending:
+      isUpdating,
+  } =
+    useUpdateOverrideRule();
+
+  const {
+    mutateAsync:
+      deleteRule,
+    isPending:
+      isDeleting,
+  } =
+    useDeleteOverrideRule();
+
+  const isSaving =
+    isCreating ||
+    isUpdating;
+
+  const closeModal = () => {
+    if (isSaving) {
+      return;
+    }
+
+    setOpenModal(false);
+    setSelectedRule(null);
+    setForm(emptyForm);
+  };
+
+  const handleAdd = () => {
+    setSelectedRule(null);
+    setForm(emptyForm);
+    setOpenModal(true);
+  };
+
+  const handleEdit = (
+    rule: OverrideCommissionRule
+  ) => {
+    setSelectedRule(rule);
+
+    setForm({
+      receiverLevel:
+        rule.receiverLevel,
+
+      sourceLevel:
+        rule.sourceLevel,
+
+      amount:
+        String(rule.amount),
+    });
+
+    setOpenModal(true);
+  };
+
+  const handleSave = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    const amount =
+      Number(form.amount);
+
+    if (
+      !form.receiverLevel ||
+      !form.sourceLevel
+    ) {
+      SweetAlert.errorAlert(
+        "Invalid Form",
+        "Receiver level and source level are required."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      SweetAlert.errorAlert(
+        "Invalid Amount",
+        "Override amount must be greater than zero."
+      );
+
+      return;
+    }
 
     try {
-
       SweetAlert.loadingAlert(
         selectedRule
           ? "Updating Rule"
@@ -33,22 +159,28 @@ export default function OverrideRules({
       );
 
       if (selectedRule) {
+        await updateRule({
+          id:
+            selectedRule.id,
 
-        // await updateOverrideRule({
-        //   id: selectedRule.id,
-        //   receiverLevel,
-        //   sourceLevel,
-        //   amount,
-        // });
+          receiverLevel:
+            form.receiverLevel,
 
+          sourceLevel:
+            form.sourceLevel,
+
+          amount,
+        });
       } else {
+        await createRule({
+          receiverLevel:
+            form.receiverLevel,
 
-        // await createOverrideRule({
-        //   receiverLevel,
-        //   sourceLevel,
-        //   amount,
-        // });
+          sourceLevel:
+            form.sourceLevel,
 
+          amount,
+        });
       }
 
       Swal.close();
@@ -59,44 +191,46 @@ export default function OverrideRules({
           ? "Override rule updated successfully."
           : "Override rule created successfully.",
         () => {},
-        () => {
-          setOpenModal(false);
-          setSelectedRule(null);
-        }
+        closeModal
       );
-
-    } catch (error) {
-
+    } catch (error: unknown) {
       Swal.close();
+
+      let message =
+        "Unable to save override rule.";
+
+      if (axios.isAxiosError(error)) {
+        message =
+          error.response?.data?.message ??
+          message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
 
       SweetAlert.errorAlert(
         "Save Failed",
-        "Unable to save override rule."
+        message
       );
 
-      console.error(error);
     }
   };
 
   const handleDelete = (
-    id: string
+    rule: OverrideCommissionRule
   ) => {
-
     SweetAlert.confirmationAlert(
       "Delete Override Rule",
-      "Are you sure you want to delete this override rule?",
+      `Delete the ${rule.receiverLevel} override from ${rule.sourceLevel}?`,
 
       async () => {
-
         try {
-
           SweetAlert.loadingAlert(
             "Deleting Rule"
           );
 
-          // await deleteOverrideRule({
-          //   id
-          // });
+          await deleteRule(
+            rule.id
+          );
 
           Swal.close();
 
@@ -104,315 +238,268 @@ export default function OverrideRules({
             "Deleted",
             "Override rule has been deleted successfully."
           );
+        } catch (error: unknown) {
+            Swal.close();
 
-        } catch (error) {
+            let message =
+              "Unable to delete override rule.";
 
-          Swal.close();
+            if (axios.isAxiosError(error)) {
+              message =
+                error.response?.data?.message ??
+                message;
+            } else if (error instanceof Error) {
+              message = error.message;
+            }
 
-          SweetAlert.errorAlert(
-            "Delete Failed",
-            "Unable to delete override rule."
-          );
+            SweetAlert.errorAlert(
+              "Delete Failed",
+              message
+            );
 
-          console.error(error);
-        }
+            console.error(error);
+          }
       }
     );
   };
 
   return (
     <div>
-
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-
+      <div className="flex items-center justify-between">
         <div>
-
-          <h3
-            className="
-              font-bold
-              text-mainPrimary
-            "
-          >
+          <h3 className="font-bold text-mainPrimary">
             Override Rules
           </h3>
 
           <p className="text-neutralPrimary">
             Define a new override amount or adjust current settings.
           </p>
-
         </div>
 
         <button
-          onClick={() => {
-
-            setSelectedRule(null);
-
-            setOpenModal(true);
-
-          }}
+          type="button"
+          onClick={handleAdd}
           className="
+            rounded-lg
             bg-positive
-            cursor-pointer
-            hover:scale-105
-            ease-in-out
-            duration-150
-            text-white
             px-custom-16
             py-custom-8
-            rounded-lg
+            text-white
+            cursor-pointer
+            transition
+            duration-150
+            ease-in-out
+            hover:scale-105
           "
         >
           Add Rule
         </button>
-
       </div>
 
-      {/* TABLE */}
-      <table
-        className="
-          w-full
-          border-collapse
-          mt-custom-24
-        "
-      >
+      <div className="mt-custom-24 overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead className="bg-white text-body">
+            <tr className="text-neutralPrimary">
+              <th className="px-custom-24 py-5 text-left font-semibold">
+                Receiver
+              </th>
 
-        <thead
-          className="
-            bg-white
-            text-body
-          "
-        >
-          <tr
-            className="
-              text-neutralPrimary
-            "
-          >
+              <th className="px-custom-24 py-5 text-left font-semibold">
+                Source
+              </th>
 
-            <th
-              className="
-                text-left
-                px-custom-24
-                py-5
-                font-semibold
-              "
-            >
-              Receiver
-            </th>
+              <th className="px-custom-24 py-5 text-left font-semibold">
+                Commission
+              </th>
 
-            <th
-              className="
-                text-left
-                px-custom-24
-                py-5
-                font-semibold
-              "
-            >
-              Source
-            </th>
+              <th className="px-custom-24 py-5 text-center font-semibold">
+                Action
+              </th>
+            </tr>
+          </thead>
 
-            <th
-              className="
-                text-left
-                px-custom-24
-                py-5
-                font-semibold
-              "
-            >
-              Commission
-            </th>
-
-            <th
-              className="
-                text-center
-                px-custom-24
-                py-5
-                font-semibold
-              "
-            >
-              Action
-            </th>
-
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {rules.map((rule) => (
-
-            <tr
-              key={rule.id}
-              className="
-                text-neutralPrimary
-                text-body
-                odd:bg-neutralLight
-              "
-            >
-
-              <td
-                className="
-                  text-left
-                  px-6
-                  py-4
-                  font-semibold
-                "
-              >
-                {rule.receiverLevel}
-              </td>
-
-              <td
-                className="
-                  text-left
-                  px-6
-                  py-4
-                  font-semibold
-                "
-              >
-                {rule.sourceLevel}
-              </td>
-
-              <td
-                className="
-                  text-left
-                  px-6
-                  py-4
-                  font-semibold
-                "
-              >
-                ₱
-                {Number(
-                  rule.amount
-                ).toLocaleString()}
-              </td>
-
-              <td
-                className="
-                  px-6
-                  py-4
-                "
-              >
-
-                <div
+          <tbody>
+            {rules.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={4}
                   className="
-                    flex
-                    justify-center
-                    gap-2
+                    px-6
+                    py-10
+                    text-center
+                    text-neutralPrimary
                   "
                 >
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSave()
+                  No override rules found.
+                </td>
+              </tr>
+            ) : (
+              rules.map(
+                (rule) => (
+                  <tr
+                    key={
+                      rule.id
                     }
                     className="
-                      bg-secondary
-                      px-custom-16
-                      py-custom-8
-                      rounded-lg
-                      text-xs
-                      font-semibold
-                      text-white
-                      cursor-pointer
-                      hover:opacity-90
+                      text-body
+                      text-neutralPrimary
+                      odd:bg-neutralLight
                     "
                   >
-                    Edit
-                  </button>
+                    <td className="px-6 py-4 text-left font-semibold">
+                      {
+                        rule.receiverLevel
+                      }
+                    </td>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleDelete(
-                        rule.id
-                      )
-                    }
-                    className="
-                      bg-negative
-                      px-custom-16
-                      py-custom-8
-                      rounded-lg
-                      text-xs
-                      font-semibold
-                      text-white
-                      cursor-pointer
-                      hover:opacity-90
-                    "
-                  >
-                    Delete
-                  </button>
+                    <td className="px-6 py-4 text-left font-semibold">
+                      {
+                        rule.sourceLevel
+                      }
+                    </td>
 
-                </div>
+                    <td className="px-6 py-4 text-left font-semibold">
+                      ₱
+                      {Number(
+                        rule.amount
+                      ).toLocaleString(
+                        "en-PH",
+                        {
+                          minimumFractionDigits:
+                            2,
 
-              </td>
+                          maximumFractionDigits:
+                            2,
+                        }
+                      )}
+                    </td>
 
-            </tr>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleEdit(
+                              rule
+                            )
+                          }
+                          disabled={
+                            isDeleting
+                          }
+                          className="
+                            rounded-lg
+                            bg-secondary
+                            px-custom-16
+                            py-custom-8
+                            text-xs
+                            font-semibold
+                            text-white
+                            cursor-pointer
+                            hover:opacity-90
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                          "
+                        >
+                          Edit
+                        </button>
 
-          ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDelete(
+                              rule
+                            )
+                          }
+                          disabled={
+                            isDeleting
+                          }
+                          className="
+                            rounded-lg
+                            bg-negative
+                            px-custom-16
+                            py-custom-8
+                            text-xs
+                            font-semibold
+                            text-white
+                            cursor-pointer
+                            hover:opacity-90
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                          "
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
 
-        </tbody>
-
-      </table>
-
-      {/* MODAL */}
       {openModal && (
-
         <MainModal
           size="sm"
-          onClose={() => {
-
-            setOpenModal(false);
-
-            setSelectedRule(null);
-
-          }}
+          onClose={
+            closeModal
+          }
         >
-
-          <div
+          <form
+            onSubmit={
+              handleSave
+            }
             className="
-              p-custom-24
               flex
               flex-col
               gap-custom-16
+              p-custom-24
             "
           >
-
-            <h2
-              className="
-                text-mdHeader
-                font-bold
-                text-mainPrimary
-              "
-            >
+            <h2 className="text-mdHeader font-bold text-mainPrimary">
               {selectedRule
                 ? "Edit Override Rule"
                 : "Add Override Rule"}
             </h2>
 
             <div>
-
               <label
-                className="
-                  block
-                  mb-2
-                  font-semibold
-                "
+                htmlFor="receiverLevel"
+                className="mb-2 block font-semibold"
               >
                 Receiver Level
               </label>
 
               <select
-                defaultValue={
-                  selectedRule?.receiverLevel ?? ""
+                id="receiverLevel"
+                value={
+                  form.receiverLevel
+                }
+                onChange={(
+                  event
+                ) =>
+                  setForm(
+                    (
+                      current
+                    ) => ({
+                      ...current,
+
+                      receiverLevel:
+                        event
+                          .target
+                          .value,
+                    })
+                  )
                 }
                 className="
                   w-full
+                  rounded-lg
                   border
                   border-neutralMed
-                  rounded-lg
+                  bg-white
                   px-custom-16
                   py-3
-                  bg-white
                 "
               >
                 <option value="">
@@ -431,33 +518,45 @@ export default function OverrideRules({
                   L3
                 </option>
               </select>
-
             </div>
 
             <div>
-
               <label
-                className="
-                  block
-                  mb-2
-                  font-semibold
-                "
+                htmlFor="sourceLevel"
+                className="mb-2 block font-semibold"
               >
                 Source Level
               </label>
 
               <select
-                defaultValue={
-                  selectedRule?.sourceLevel ?? ""
+                id="sourceLevel"
+                value={
+                  form.sourceLevel
+                }
+                onChange={(
+                  event
+                ) =>
+                  setForm(
+                    (
+                      current
+                    ) => ({
+                      ...current,
+
+                      sourceLevel:
+                        event
+                          .target
+                          .value,
+                    })
+                  )
                 }
                 className="
                   w-full
+                  rounded-lg
                   border
                   border-neutralMed
-                  rounded-lg
+                  bg-white
                   px-custom-16
                   py-3
-                  bg-white
                 "
               >
                 <option value="">
@@ -476,56 +575,106 @@ export default function OverrideRules({
                   L3
                 </option>
               </select>
-
             </div>
 
             <div>
-
               <label
-                className="
-                  block
-                  mb-2
-                  font-semibold
-                "
+                htmlFor="amount"
+                className="mb-2 block font-semibold"
               >
                 Override Amount
               </label>
 
               <input
+                id="amount"
                 type="number"
-                defaultValue={
-                  selectedRule?.amount ?? 0
+                min="0.01"
+                step="0.01"
+                value={
+                  form.amount
                 }
+                onChange={(
+                  event
+                ) =>
+                  setForm(
+                    (
+                      current
+                    ) => ({
+                      ...current,
+
+                      amount:
+                        event
+                          .target
+                          .value,
+                    })
+                  )
+                }
+                placeholder="Enter override amount"
                 className="
                   w-full
+                  rounded-lg
                   border
                   border-neutralMed
-                  rounded-lg
                   px-custom-16
                   py-3
                 "
               />
-
             </div>
 
-            <button
-              className="
-                bg-mainPrimary
-                text-white
-                py-3
-                rounded-lg
-                font-semibold
-              "
-            >
-              Save
-            </button>
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={
+                  closeModal
+                }
+                disabled={
+                  isSaving
+                }
+                className="
+                  flex-1
+                  rounded-lg
+                  border
+                  border-neutralMed
+                  py-3
+                  font-semibold
+                  text-neutralPrimary
+                  cursor-pointer
+                  hover:bg-neutralLight
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
+              >
+                Cancel
+              </button>
 
-          </div>
-
+              <button
+                type="submit"
+                disabled={
+                  isSaving
+                }
+                className="
+                  flex-1
+                  rounded-lg
+                  bg-mainPrimary
+                  py-3
+                  font-semibold
+                  text-white
+                  cursor-pointer
+                  hover:opacity-90
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
+              >
+                {isSaving
+                  ? "Saving..."
+                  : selectedRule
+                    ? "Update"
+                    : "Save"}
+              </button>
+            </div>
+          </form>
         </MainModal>
-
       )}
-
     </div>
   );
 }

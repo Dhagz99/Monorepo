@@ -63,3 +63,43 @@ export interface ReactivationApprovalProgressResponse {
 
   approvals: ReactivationApprovalProgressItem[];
 }
+
+export interface ReactivationRequestAgentDetails {
+   id: string;
+   agentCode: string;
+   fullName: string;
+   status: string; 
+}
+
+export interface ReactivationApprovalReviewer {
+  id: number;
+  name: string;
+  username: string;
+}
+
+export interface ReactivationRequestApprovalDetails {
+  id: string;
+  status: string;
+  remarks: string | null;
+  reviewedAt: string | null;
+  reviewer: ReactivationApprovalReviewer | null;
+}
+
+export interface ReactivationRequestDetailsResponse {
+  requestId: string;
+
+  agent: ReactivationRequestAgentDetails;
+
+  requiredSales: number;
+
+  probationStartDate: string | null;
+  probationEndDate: string | null;
+
+  approval: ReactivationRequestApprovalDetails | null;
+}
+
+export interface GetReactivationRequestDetailsApiResponse {
+  success: boolean;
+  message?: string;
+  data: ReactivationRequestDetailsResponse;
+}

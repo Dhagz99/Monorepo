@@ -1,6 +1,6 @@
+export type AgentLevel = "L1" | "L2" | "L3";
 export interface SearchAgentsParams {
   search?: string
-  branchCodes?: string[]
 }
 
 export interface AgentSearchResult {
@@ -17,16 +17,6 @@ export interface AgentSearchResult {
 
   saleMaintenance: number;
 
-  l2DownlineCount: number;
-
-  l3DownlineCount: number;
-
-  parentAgent?: {
-    id: string;
-    fullName: string;
-    level: string;
-    agentCode: string;
-  } | null;
 }
 
 export type SearchAgentsResponse =
@@ -86,12 +76,6 @@ export interface BranchSearchResult {
   branchCode: string;
 
   companyName: string | null;
-
-  capacity: BranchCapacity;
-
-  /* GLOBAL MLM UPLINES */
-  availableUplines:
-    BranchUplineAvailability[];
 }
 
 export type SearchBranchResponse =
@@ -105,12 +89,7 @@ export interface GetPendingAgentParams {
   status?: string;
 }
 
-export interface PendingAgentBranch {
-  branch: {
-    branchCode: string;
-    companyName?: string;
-  };
-}
+
 
 export interface PendingAgents {
   id:string
@@ -122,7 +101,7 @@ export interface PendingAgents {
 
   status: string;
 
-  branches: PendingAgentBranch[];
+
 }
 
 export interface GetPendingAgentResponse {
@@ -147,7 +126,6 @@ export interface GetMasterlistParams {
   limit?: number;
   search?: string;
   status?: string;
-  branchCode?: string;
 }
 
 export interface MasterlistBranch {
@@ -431,21 +409,6 @@ export interface GetAgentDetailsParams {
   agentId: string;
 }
 
-export interface AgentDetailsBranch {
-  id: string;
-
-  branchId: string;
-
-  branch: {
-    branchCode: string;
-
-    companyName?: string | null;
-
-    location?: string | null;
-  };
-}
-
-
 export interface AgentDetailsParent {
   id: string;
 
@@ -516,7 +479,7 @@ export interface GetAgentDetailsResponse {
 
   parentAgent?: AgentDetailsParent | null;
 
-  branches: AgentDetailsBranch[];
+
 
   downlines: AgentDetailsDownline[];
 
@@ -577,10 +540,27 @@ export interface SubmitAdminReactivationResponse {
   };
 }
 
+export interface SubmitReactivationResponse {
+  success: boolean;
+  message: string;
+  data: {
+    id: string;
+    agentId: string;
+    status: string;
+    requestType: string;
+    createdAt: string;
+  };
+}
+
 export interface ReviewReactivationApprovalPayload {
   approvalId: string;
   status: "APPROVED" | "REJECTED";
   remarks?: string;
+
+
+  requiredSales?: number;
+  probationStartDate?: string;
+  probationEndDate?: string;
 }
 
 
@@ -655,3 +635,87 @@ export interface ReviewReactivationApprovalResponse {
     requestStatus: string;
   };
 }
+
+
+
+
+
+
+
+// Edit Agent Types
+
+// packages/shared/src/types/agent/agent-edit.types.ts
+
+export type AgentGender =
+  | "MALE"
+  | "FEMALE";
+
+
+export type AgentStatus =
+  | "ACTIVE"
+  | "PROBATION"
+  | "EXPIRED"
+  | "DROPPED"
+  | "SUSPENDED"
+  | "PENDING"
+  | "REJECTED";
+
+export type AgentEditDetails = {
+  id: string;
+  fullName: string;
+  agentCode: string;
+  username: string | null;
+  level: AgentLevel;
+  status: AgentStatus;
+  gender: AgentGender | null;
+  birthDate: string | null;
+  address: string | null;
+  email: string | null;
+  telephone: string | null;
+  secondaryTel: string | null;
+};
+
+export type UpdateAgentDetailsPayload = {
+  fullName: string;
+  username: string | null;
+  level: AgentLevel;
+  status: AgentStatus;
+  gender: AgentGender | null;
+  birthDate: string | null;
+  address: string | null;
+  email: string | null;
+  telephone: string | null;
+  secondaryTel: string | null;
+};
+
+export type UpdateAgentResponse = {
+  message: string;
+  data: AgentEditDetails;
+};
+
+
+export type AgentFormState = {
+  fullName: string;
+  username: string;
+  level: string;
+  status: string;
+  gender: string;
+  birthDate: string;
+  address: string;
+  email: string;
+  telephone: string;
+  secondaryTel: string;
+};
+
+export const emptyAgentForm: AgentFormState = {
+  fullName: "",
+  username: "",
+  level: "L1",
+  status: "ACTIVE",
+  gender: "",
+  birthDate: "",
+  address: "",
+  email: "",
+  telephone: "",
+  secondaryTel: "",
+};

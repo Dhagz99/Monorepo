@@ -10,7 +10,8 @@ import SweetAlert from "@/components/modal/Swal";
 import {
   RegisterAgentSchema,
   AgentSearchResult,
-  BranchSearchResult
+  BranchSearchResult,
+  AgentLevel
 } from "@repo/shared";
 
 import {
@@ -52,10 +53,6 @@ export default function LevelBranchStep({
   setActiveStep,
 }: Props) {
     
-    const { user } = useAuth();
-
-    const isBranchAccount =
-    user?.roles?.includes("BRANCH_ACC");
 
     const [uplineType, setUplineType] =
     useState<
@@ -63,20 +60,11 @@ export default function LevelBranchStep({
         "without-upline"
     >("with-upline");
 
-    // const [accType, setAccType] = 
-    // useState<
-    //     "CODED" |
-    //     "UNCODED"
-    // >("CODED");
 
     const [
     manualLevelType,
     setManualLevelType,
-    ] = useState<
-    "L1" |
-    "L2" |
-    "L3"
-    >();
+    ] = useState<"L1" | "L2" | "L3">("L1");
 
     const [searchUpline, setSearchUpline] = useState ("");
 
@@ -87,274 +75,105 @@ export default function LevelBranchStep({
     setShowDropdown,
     ] = useState(false);
 
-    const [searchBranch, setSearchBranch] = useState ("");
-
-    const [selectedBranches,setSelectedBranches,] = useState<BranchSearchResult[]>([]);
-
-    const [branchDropdown, setBranchDropdown] = useState(false);
-
-     const {
-        data: branch = [],
-        } = useSearchBranches({
-        search: searchBranch,
-        });
 
     const {
     data: agents = [],
     } = useSearchAgents({
-    search: searchUpline,
-
-    branchCodes:
-        selectedBranches.map(
-        branch => branch.branchCode
-        ),
+    search: searchUpline
     });
 
-    const uplineLevel =
-    selectedAgent?.level;
-
-    
-    const MAX_L2_DOWNLINE = 10;
-
-    const MAX_L3_DOWNLINE = 10;
+    const uplineLevel = selectedAgent?.level as
+    | AgentLevel
+    | undefined;
 
 
-    /* =========================================
-    BRANCH SLOT CHECKER
-    ========================================= */
-    const hasBranchAvailableSlot = (
-    level: "L1" | "L2" | "L3"
-    ) => {
-
-    if (selectedBranches.length === 0) {
-        return false;
-    }
-
-    /* =========================
-        L1
-        BRANCH-BASED
-    ========================= */
-    if (level === "L1") {
-
-        return selectedBranches.some(
-        (branch) =>
-            branch.capacity
-            .availableL1Slots > 0
-        );
-    }
-
-    
-
-  /* =========================
-     L2 / L3
-     GLOBAL MLM
-  ========================= */
-    return true;
-    };
     /* =========================================
     DISABLED REASON
     ========================================= */
     const getLevelDisabledReason = (
-    level: "L1" | "L2" | "L3"
-    ) => {
+    level: AgentLevel
+    ): string | null => {
 
-    /* =========================
-        NO BRANCH SELECTED
-    ========================= */
-    if (
-        selectedBranches.length === 0
-    ) {
-        return "Please select at least one branch.";
-    }
+    // Without an upline, all levels can be selected manually.
+    if (uplineType === "without-upline") {
+        if (level === "L2") {
+        return "An L2 agent requires an L1 upline.";
+        }
 
-    /* =========================
-        BRANCH SLOT LIMIT
-    ========================= */
-    if (
-        !hasBranchAvailableSlot(level)
-    ) {
-        return `No available ${level} slots in selected branches.`;
-    }
+        if (level === "L3") {
+        return "An L3 agent requires an L2 upline.";
+        }
 
-    /* =========================
-        WITHOUT UPLINE
-    ========================= */
-    if (
-        uplineType ===
-        "without-upline"
-    ) {
         return null;
     }
 
-    /* =========================
-        NO UPLINE LEVEL
-    ========================= */
-    if (!uplineLevel) {
-        return "Please select an upline agent.";
+    // An agent with an upline can never be L1.
+    if (level === "L1") {
+        return "Level 1 agents cannot have an upline.";
     }
 
-    /* =========================
-        UPLINE L2
-        Can ONLY create L3
-    ========================= */
-    if (uplineLevel === "L2") {
-
-        if (level !== "L3") {
-        return "Level 2 uplines can only create Level 3 agents.";
-        }
-
-        if (
-        selectedAgent
-            ?.l3DownlineCount >=
-        MAX_L3_DOWNLINE
-        ) {
-        return "Maximum Level 3 downlines reached.";
-        }
+    // Wait until an upline has been selected.
+    if (!selectedAgent || !uplineLevel) {
+        return "Please select an upline agent first.";
     }
 
-    /* =========================
-        UPLINE L1
-    ========================= */
+    // L1 upline can only register an L2 downline.
     if (uplineLevel === "L1") {
-
-        /* Cannot create L1 */
-        if (level === "L1") {
-        return "You can't have the same level as your upline.";
+        if (level === "L3") {
+        return "An L1 upline can only register an L2 agent.";
         }
 
-        /* L2 LIMIT */
-        if (
-        level === "L2" &&
-        selectedAgent
-            ?.l2DownlineCount >=
-        MAX_L2_DOWNLINE
-        ) {
-        return "Maximum Level 2 downlines reached.";
-        }
-
-        /* L3 LIMIT */
-        if (
-        level === "L3" 
-        ) {
-        return "Invalid assignment. L3 can only be assigned as a downline of L2";
-        }
+        return null;
     }
 
-    return null;
+    // L2 upline can only register an L3 downline.
+    if (uplineLevel === "L2") {
+        if (level === "L2") {
+        return "An L2 upline can only register an L3 agent.";
+        }
+
+        return null;
+    }
+
+    return "The selected upline has an invalid level.";
     };
 
     /* =========================================
     DISABLED CHECK
     ========================================= */
-    const isLevelDisabled = (
-    level: "L1" | "L2" | "L3"
-    ) => {
-
-    return !!getLevelDisabledReason(
-        level
-    );
+   const isLevelDisabled = (
+    level: AgentLevel
+    ): boolean => {
+    return getLevelDisabledReason(level) !== null;
     };
+
+
 
     /* =========================================
     FINAL SELECTED LEVEL
     ========================================= */
     const selectedAgentLevel =
-    useMemo(() => {
-
-        /* =========================
-        WITHOUT UPLINE
-        ========================= */
-        if (
-        uplineType ===
-        "without-upline"
-        ) {
+    useMemo<AgentLevel | undefined>(() => {
+        if (uplineType === "without-upline") {
         return manualLevelType;
         }
 
-        /* =========================
-        UPLINE L2
-        ========================= */
-        if (
-        uplineLevel === "L2"
-        ) {
+        if (uplineLevel === "L1") {
+        return "L2";
+        }
 
+        if (uplineLevel === "L2") {
         return "L3";
         }
 
-        /* =========================
-        UPLINE L1
-        ========================= */
-        if (
-        uplineLevel === "L1"
-        ) {
-
-        /* Prevent invalid L1 */
-        if (
-            manualLevelType ===
-            "L1"
-        ) {
-            return "L2";
-        }
-
-        return manualLevelType;
-        }
-
-        return manualLevelType;
-
+        return undefined;
     }, [
         uplineType,
         uplineLevel,
         manualLevelType,
     ]);
 
-    const handleSelectBranch = (
-    branch: BranchSearchResult
-    ) => {
 
-    const alreadyExists =
-        selectedBranches.some(
-        (b) =>
-            b.branchCode ===
-            branch.branchCode
-        );
-
-    if (alreadyExists) {
-        return;
-    }
-
-    if (
-        selectedBranches.length >= 2
-    ) {
-        return;
-    }
-
-    const updatedBranches = [
-        ...selectedBranches,
-        branch,
-    ];
-
-    setSelectedBranches(
-        updatedBranches
-    );
-
-    setValue(
-        "branches",
-        updatedBranches.map(
-            (branch) => ({
-            branchCode:
-                branch.branchCode,
-
-            companyName:
-                branch.companyName ?? undefined,
-            })
-        )
-        );
-
-    setSearchBranch("");
-
-    setBranchDropdown(false);
-    };
-    
 
     return (
         <div className="relative flex flex-col gap-5">
@@ -470,290 +289,7 @@ export default function LevelBranchStep({
                     </div>
                 </div>
 
-        {/* <div className="relative flex flex-col gap-2">
-
-            <h6 className="text-neutralPrimary text-body">
-               Select Account Type
-            </h6>
-            <div className="flex gap-x-custom-16 border-2 border-neutralMed w-full px-custom-24 py-3 rounded-md">
-   
-                <label className="inline-flex items-center gap-3 cursor-pointer">
-                <button
-                    type="button"
-                    onClick={() => {
-
-                        setAccType("CODED");
-
-                        setValue(
-                            "agentAccType",
-                            "CODED"
-                        );
-                    }}
-                    className="
-                    w-5
-                    h-5
-                    rounded-full
-                    border-2
-                    border-positive
-                    flex
-                    items-center
-                    justify-center
-                    "
-                >
-                    {accType ===
-                    "CODED" && (
-                    <Check
-                        className="
-                        w-3
-                        h-3
-                        text-positive
-                        "
-                    />
-                    )}
-                </button>
-                <span>
-                    CODED
-                </span>
-                </label>
-   
-                <label className="inline-flex items-center gap-3 cursor-pointer">
-                <button
-                    type="button"
-                    onClick={() => {
-
-                        setAccType("UNCODED");
-
-                        setValue(
-                            "agentAccType",
-                            "UNCODED"
-                        );
-
-                        // REMOVE QR
-                        setValue(
-                            "agentQrCode",
-                            ""
-                        );
-                    }}
-                    className="
-                    w-5
-                    h-5
-                    rounded-full
-                    border-2
-                    border-positive
-                    flex
-                    items-center
-                    justify-center
-                    "
-                >
-                    {accType ===
-                    "UNCODED" && (
-                    <Check
-                        className="
-                        w-3
-                        h-3
-                        text-positive
-                        "
-                    />
-                    )}
-                </button>
-                <span>
-                    UNCODED
-                </span>
-                </label>
-            </div>
-        </div> */}
-
-
-
-        {/* =========================
-            BRANCH SELECTOR
-        ========================= */}
-        <div className="relative flex flex-col gap-2 col-span-3">
-
-            <h6 className="text-neutralPrimary text-body">
-            Assign Agent Branch
-            </h6>
-
-            {/* INPUT CONTAINER */}
-            <div
-            className="
-                flex
-                flex-wrap
-                items-center
-                gap-2
-                border
-                border-neutralPrimary
-                rounded-lg
-                px-3
-                py-2
-                min-h-13
-                bg-white
-                focus-within:border-mainPrimary
-                focus-within:border-2
-            "
-            >
-
-            {/* SELECTED TAGS */}
-            {selectedBranches.map(
-                (branch) => (
-
-                <div
-                    key={branch.branchCode}
-                    className="
-                    relative
-                    inline-flex
-                    items-center
-                    gap-2
-                    bg-positive/10
-                    text-positive
-                    px-3
-                    py-1
-                    rounded-full
-                    text-sm
-                    "
-                >
-
-                    <span>
-                    {branch.companyName}
-                    </span>
-
-                    <button
-                    type="button"
-                    onClick={() => {
-
-                    const updatedBranches =
-                    selectedBranches.filter(
-                        (b) =>
-                        b.branchCode !==
-                        branch.branchCode
-                    );
-
-                    setSelectedBranches(
-                    updatedBranches
-                    );
-
-                    setValue(
-                    "branches",
-                    updatedBranches.map(
-                        (branch) => ({
-                        branchCode:
-                            branch.branchCode,
-
-                        companyName:
-                            branch.companyName ?? undefined,
-                        })
-                    )
-                    );
-
-                    }}
-                    className="
-                        hover:text-negative
-                    "
-                    >
-                    ×
-                    </button>
-
-                </div>
-                )
-            )}
-
-            {selectedBranches.length >= 2 && (
-            <p className="absolute -bottom-custom-24 text-xs text-negative">
-                Maximum of 2 branches only.
-            </p>
-            )}
-
-            {/* SEARCH INPUT */}
-            <input
-                type="search"
-                value={searchBranch}
-                disabled={
-                    selectedBranches.length >= 2
-                }
-                onChange={(e) => {
-
-                setSearchBranch(
-                    e.target.value
-                );
-
-                setBranchDropdown(true);
-                }}
-                placeholder="Search Branch..."
-                className="
-                flex-1
-                min-w-45
-                outline-none
-                bg-transparent
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-                "
-            />
-
-            </div>
-
-            {/* DROPDOWN */}
-            {branchDropdown &&
-            branch.length > 0 &&
-            searchBranch && (
-
-            <div
-                className="
-                absolute
-                top-full
-                left-0
-                w-full
-                bg-white
-                border
-                border-neutralMed
-                rounded-lg
-                shadow-md
-                z-50
-                mt-1
-                max-h-60
-                overflow-y-auto
-                "
-            >
-
-                {branch.map((branch) => (
-
-                <button
-                    key={branch.branchCode}
-                    type="button"
-                    onClick={() =>
-                        handleSelectBranch(branch)
-                    }
-                    className="
-                    w-full
-                    text-left
-                    px-4
-                    py-3
-                    hover:bg-neutralLight
-                    "
-                    >
-
-                    <div className="flex flex-col">
-
-                    <span className="font-semibold">
-                        {branch.companyName}
-                    </span>
-
-                    <span className="text-xs text-neutralPrimary">
-                        {branch.branchCode}
-                    </span>
-
-                    </div>
-
-                </button>
-                ))}
-
-            </div>
-            )}
-
-        </div>
-
-
-
-
+     
 
          </div>
 
@@ -1193,250 +729,7 @@ export default function LevelBranchStep({
 
             </ul>
 
-
-
-            <div
-            className={`
-                grid
-                gap-custom-24
-                ${
-                selectedBranches.length === 1
-                    ? "grid-cols-1"
-                    : "grid-cols-1 xl:grid-cols-2"
-                }
-            `}
-            >
-
-            {selectedBranches.map((branch) => (
-
-            <div
-                key={branch.branchCode}
-                className="
-                border
-                border-neutralMed
-                rounded-2xl
-                p-custom-24
-                bg-white
-                shadow-sm
-                flex
-                flex-col
-                gap-y-custom-24
-                mb-custom-16
-                "
-            >
-
-                {/* HEADER */}
-                <div className="flex justify-between items-start">
-
-                <div>
-
-                    <h3 className="font-bold text-mainPrimary">
-                    {branch.companyName}
-                    </h3>
-
-                    <p className="text-sm text-neutralPrimary">
-                    {branch.branchCode}
-                    </p>
-
-                </div>
-
-                </div>
-
-                {/* CAPACITY */}
-                <div className="grid grid-cols-3 gap-4">
-
-                {/* L1 */}
-                <div
-                    className="
-                    bg-neutralLight
-                    rounded-xl
-                    p-custom-16
-                    flex
-                    flex-col
-                    "
-                >
-
-                    <p className="text-xs text-neutralPrimary">
-                    L1
-                    </p>
-
-                    <strong className="text-secondaryHeader text-mainPrimary">
-                    {branch.capacity.totalL1}/10
-                    </strong>
-
-                    <span className="text-xs text-neutralPrimary">
-                    Available:
-                    {" "}
-                    {branch.capacity.availableL1Slots}
-                    </span>
-
-                </div>
-
-                {/* L2 */}
-                <div
-                    className="
-                    bg-neutralLight
-                    rounded-xl
-                    p-custom-16
-                    flex
-                    flex-col
-                    "
-                >
-
-                    <p className="text-xs text-neutralPrimary">
-                    L2
-                    </p>
-
-                    <strong className="text-secondaryHeader text-mainPrimary">
-                    {branch.capacity.totalL2}
-                    </strong>
-
-                    <span className="text-xs text-neutralPrimary">
-                    Global hierarchy
-                    </span>
-
-                </div>
-
-                {/* L3 */}
-                <div
-                    className="
-                    bg-neutralLight
-                    rounded-xl
-                    p-custom-16
-                    flex
-                    flex-col
-                    "
-                >
-
-                    <p className="text-xs text-neutralPrimary">
-                    L3
-                    </p>
-
-                    <strong className="text-secondaryHeader text-mainPrimary">
-                    {branch.capacity.totalL3}
-                    </strong>
-
-                    <span className="text-xs text-neutralPrimary">
-                    Global hierarchy
-                    </span>
-
-                </div>
-
-                </div>
-                {/* AVAILABLE UPLINES */}
-                <div className="relative flex flex-col gap-y-custom-16 max-h-100 overflow-y-auto">
-
-                <h4 className="sticky top-0 bg-white py-custom-16 font-semibold text-mainPrimary">
-                    Available Uplines
-                </h4>
-
-                {branch.availableUplines
-                    .length === 0 ? (
-
-                    <div
-                    className="
-                        w-full
-                        border
-                        border-dashed
-                        border-neutralMed
-                        rounded-xl
-                        p-custom-24
-                        text-center
-                        text-neutralPrimary
-                    "
-                    >
-                    No available uplines
-                    </div>
-
-                ) : (
-
-                    branch.availableUplines.map(
-                    (upline) => (
-
-                        <div
-                        key={upline.id}
-                        className="
-                            border
-                            border-neutralMed
-                            rounded-xl
-                            p-custom-16
-                            flex
-                            justify-between
-                            items-center
-                            hover:border-mainPrimary
-                            transition
-                            
-                        "
-                        >
-
-                        {/* LEFT */}
-                        <div>
-
-                            <p className="font-semibold">
-                            {upline.fullName}
-                            </p>
-
-                            <p
-                            className="
-                                text-xs
-                                text-neutralPrimary
-                            "
-                            >
-                            {upline.level}
-                            </p>
-
-                        </div>
-
-                        {/* RIGHT */}
-                        <div
-                            className="
-                            flex
-                            flex-col
-                            items-end
-                            text-sm
-                            "
-                        >
-
-                            {upline.level ===
-                            "L1" && (
-                            <p>
-                                L2 Vacancy:
-                                {" "}
-                                {
-                                upline
-                                    .availableL2Slots
-                                }
-                            </p>
-                            )}
-
-                            <p>
-                            L3 Vacancy:
-                            {" "}
-                            {
-                                upline
-                                .availableL3Slots
-                            }
-                            </p>
-
-                        </div>
-
-                        </div>
-                    )
-                    )
-                )}
-
-                </div>
-
-            </div>
-            ))}
-
-        </div>
             
-
-            {/* SHOW ONLY IF WITH UPLINE */}
-
-            
-
     </div>
 
 
@@ -1518,7 +811,3 @@ export default function LevelBranchStep({
         </div>
     );
 }
-
-
-
-

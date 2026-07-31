@@ -50,3 +50,51 @@ export const updateAccSchema = z
 
 export type UpdateAgentAccSchema =
   z.infer<typeof updateAccSchema>;
+
+
+export const updateAdminAccSchema = z
+  .object({
+    email: z
+      .string()
+      .email("Invalid email address")
+      .optional(),
+
+
+    password: z.string().optional(),
+
+    confirmPassword: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.password) return true;
+
+      return (
+        data.password.length >= 8 &&
+        /^(?=.*[A-Z])(?=.*\d).+$/.test(
+          data.password
+        )
+      );
+    },
+    {
+      path: ["password"],
+      message:
+        "Password must contain at least 8 characters, 1 uppercase letter and 1 number",
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.password) return true;
+
+      return (
+        data.password ===
+        data.confirmPassword
+      );
+    },
+    {
+      path: ["confirmPassword"],
+      message: "Passwords do not match",
+    }
+  );
+
+export type UpdateAdminAccSchema =
+  z.infer<typeof updateAdminAccSchema>;

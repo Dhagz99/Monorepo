@@ -51,7 +51,7 @@ export interface CommissionDetailsParams {
 
 export interface CommissionDetailsResponse {
   id: string;
-
+  payoutChannel: string;
   saleReference: string | null;
 
   client: {

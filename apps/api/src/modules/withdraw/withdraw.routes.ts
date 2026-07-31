@@ -3,7 +3,7 @@ import { authenticateToken } from "../auth/auth.middleware";
 import {
   approveWithdrawalRequestController,
   createMyWithdrawalRequestController,
-  handleWithdrawalWebhookController,
+  // handleWithdrawalWebhookController,
   rejectWithdrawalController,
   retryWithdrawalRequestController,
 } from "./withdraw.controller";
@@ -35,9 +35,9 @@ router.post(
 );
 
 // NO authenticateToken here. Xendit will not send your JWT.
-router.post(
-  "/webhooks/xendit",
-  handleWithdrawalWebhookController
-);
+// router.post(
+//   "/webhooks/xendit",
+//   handleWithdrawalWebhookController
+// );
 
 export default router;

@@ -218,12 +218,13 @@
 
 
 import prisma from "../../lib/prisma";
-import { NotificationType, NotificationActionType, ActionResult  } from "../../../generated/prisma";
+import { NotificationType, NotificationActionType, ActionResult, ReactivationRequestStatus  } from "../../../generated/prisma";
 
 import {
   Prisma,
 } from "@prisma/client";
-import { emitAdminPaymentUpdated, emitAdminReactivationApproval, emitNotification, emitUplineReactivationApproval } from "../../socket/socketEmitter";
+import { emitAdminPaymentUpdated, emitAdminReactivationApproval, emitBranchReactivationApproval, emitNotification, emitUplineReactivationApproval } from "../../socket/socketEmitter";
+import { ReactivationRequestDetailsResponse, ReviewReactivationApprovalPayload } from "@repo/shared";
 
 const SELF_REACTIVATION_LIMIT_DAYS = 90;
 const ADMIN_REACTIVATION_LIMIT_DAYS = 180;
@@ -713,6 +714,8 @@ export async function selfReactivateAgent(
             data: {
             agentId: agent.id,
 
+            branchCode: "EMB-MAIN",
+
             requestType:
                 "SELF_REACTIVATION",
 
@@ -765,198 +768,6 @@ export async function selfReactivateAgent(
   );
 }
 
-
-
-
-
-// export const submitAdminReactivationRequestService =
-//   async (
-//     userId: number,
-//     file: Express.Multer.File
-//   ) => {
-//     const user =
-//       await prisma.user.findUnique({
-//         where: {
-//           id: userId,
-//         },
-//         include: {
-//           agent: true,
-//         },
-//       });
-
-
-//     if (!user) {
-//       throw new Error("User not found.");
-//     }
-
-//     if (!user.agentId || !user.agent) {
-//       throw new Error(
-//         "User is not linked to an agent."
-//       );
-//     }
-
-//     const agent = user.agent;
-
-    
-//     const parentAcc = await prisma.user.findFirst({
-//       where:{
-//         agentId: agent.parentAgentId
-//       }, 
-//       include: {
-//           agent: true,
-//         },
-//     })
-
-
-//     if (agent.status !== "EXPIRED") {
-//       throw new Error(
-//         "Only expired agents can request admin reactivation."
-//       );
-//     }
-
-//     if (!file) {
-//       throw new Error(
-//         "Formal written reactivation request file is required."
-//       );
-//     }
-
-//     const existingActiveRequest =
-//       await prisma.agentReactivationRequest.findFirst({
-//         where: {
-//           agentId: agent.id,
-//           requestType: "ADMIN_APPROVAL",
-//           status: {
-//             in: [
-//               "PENDING",
-//               "PROBATION",
-//             ],
-//           },
-//         },
-//       });
-
-//     if (existingActiveRequest) {
-//       throw new Error(
-//         "You already have an active admin reactivation request."
-//       );
-//     }
-
-//     return prisma.$transaction(
-//       async (tx) => {
-//         const request =
-//           await tx.agentReactivationRequest.create({
-//             data: {
-//               agentId: agent.id,
-//               requestType: "ADMIN_APPROVAL",
-//               status: "PENDING",
-//               reason:
-//                 "Formal written reactivation request submitted for admin approval.",
-
-//               attachments: {
-//                 create: {
-//                   fileName: file.originalname,
-//                   filePath: `/uploads/reactivation-requests/${file.filename}`,
-//                   fileType: file.mimetype,
-//                   fileSize: file.size,
-//                 },
-//               },
-
-//               approvals: {
-//                 create: [
-//                   ...(agent.parentAgentId
-//                     ? [
-//                         {
-//                           reviewerUserId: parentAcc?.id,
-//                           reviewerType:
-//                             "UPLINE_AGENT" as const,
-//                           reviewerAgentId:
-//                             agent.parentAgentId,
-//                           status:
-//                             "PENDING" as const,
-//                           approvalOrder: 1,
-//                           isRequired: true,
-
-//                         },
-//                       ]
-//                     : []),
-
-//                   {
-//                     reviewerType:
-//                       "ADMIN" as const,
-//                     status:
-//                       "PENDING" as const,
-//                     approvalOrder: agent.parentAgentId ? 2 : 1,
-//                     isRequired: true,
-//                   },
-//                 ],
-//               },
-//             },
-
-//             include: {
-//               attachments: true,
-//               approvals: true,
-//             },
-//           });
-
-//           const adminApproval =
-//             request.approvals.find(
-//               (approval) =>
-//                 approval.reviewerType === "ADMIN"
-//             );
-
-//           const uplineApproval =
-//             request.approvals.find(
-//               (approval) =>
-//                 approval.reviewerType === "UPLINE_AGENT"
-//             );
-
-//           if (adminApproval) {
-//             emitAdminReactivationApproval({
-//               requestId: request.id,
-//               approvalId: adminApproval.id,
-//               agentId: agent.id,
-//               agentName: agent.fullName,
-//               reviewerType: "ADMIN",
-//               title: "New Reactivation Approval",
-//               message: `${agent.fullName} submitted a reactivation request for admin approval.`,
-//               createdAt: new Date(),
-//             });
-//           }
-
-//           if (
-//             uplineApproval &&
-//             uplineApproval.reviewerAgentId
-//           ) {
-//             emitUplineReactivationApproval(
-//               uplineApproval.reviewerAgentId,
-//               {
-//                 requestId: request.id,
-//                 approvalId: uplineApproval.id,
-//                 agentId: agent.id,
-//                 agentName: agent.fullName,
-//                 reviewerType: "UPLINE_AGENT",
-//                 title: "New Reactivation Approval",
-//                 message: `${agent.fullName} submitted a reactivation request requiring your approval.`,
-//                 createdAt: new Date(),
-//               }
-//             );
-//           }
-
-//         await tx.agentNotification.create({
-//           data: {
-//             agentId: agent.id,
-//             type:
-//               NotificationType.MAINTENANCE_CREATED,
-//             title:
-//               "ADMIN REACTIVATION REQUEST SUBMITTED",
-//             message:
-//               "Your formal written reactivation request has been submitted and is waiting for approval.",
-//           },
-//         });
-
-//         return request;
-//       }
-//     );
-//   };
 
 
 export const submitAdminReactivationRequestService =
@@ -1034,6 +845,7 @@ export const submitAdminReactivationRequestService =
           data: {
             agentId: agent.id,
             requestType: "ADMIN_APPROVAL",
+            branchCode: "EMB-MAIN",
             status: "PENDING",
             reason:
               "Formal written reactivation request submitted for admin approval.",
@@ -1157,6 +969,253 @@ export const submitAdminReactivationRequestService =
     });
   };
 
+export const submitReactivationRequestService = async (
+  userId: number,
+  agentCode: string,
+  file: Express.Multer.File
+) => {
+  const normalizedAgentCode =
+    agentCode?.trim();
+
+  if (!normalizedAgentCode) {
+    throw new Error("Agent code is required.");
+  }
+
+  if (!file) {
+    throw new Error(
+      "Formal written reactivation request file is required."
+    );
+  }
+
+  const [submittingUser, agent] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          id: true,
+          username: true,
+          roles: {
+            include: {
+              role: true,
+            },
+          },
+          branch:{
+            select:{
+              branchCode:true
+            }
+          }
+        },
+      }),
+
+      prisma.agent.findFirst({
+        where: {
+          agentCode: normalizedAgentCode,
+        },
+      }),
+    ]);
+
+  if (!submittingUser) {
+    throw new Error(
+      "Submitting user was not found."
+    );
+  }
+
+
+  if (!agent) {
+    throw new Error("Agent was not found.");
+  }
+
+  const allowedRoles = [
+    "BRANCH_ACC",
+  ];
+
+  const canSubmit =
+    submittingUser.roles.some(
+      (userRole) =>
+        allowedRoles.includes(
+          userRole.role.name
+        )
+    );
+
+  if (!canSubmit) {
+    throw new Error(
+      "You are not allowed to submit reactivation requests."
+    );
+  }
+
+  if (agent.status !== "EXPIRED") {
+    throw new Error(
+      "Only expired agents can request reactivation."
+    );
+  }
+
+  const existingActiveRequest =
+    await prisma.agentReactivationRequest.findFirst({
+      where: {
+        agentId: agent.id,
+        requestType: "ADMIN_APPROVAL",
+        status: {
+          in: [
+            "PENDING",
+            "PROBATION",
+          ],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (existingActiveRequest) {
+    throw new Error(
+      "This agent already has an active reactivation request."
+    );
+  }
+
+  const result =
+    await prisma.$transaction(
+      async (tx) => {
+        const request =
+          await tx.agentReactivationRequest.create({
+            data: {
+              agentId: agent.id,
+              submittedByUserId: submittingUser.id,
+              submittedBranchCode: submittingUser.branch?.branchCode,
+              requestType:
+                "ADMIN_APPROVAL",
+              status: "PENDING",
+              reason:
+                "Formal written reactivation request submitted for admin approval.",
+
+              /*
+               * Add this field only if it exists
+               * in your Prisma model.
+               */
+              // submittedByUserId:
+              //   submittingUser.id,
+
+              attachments: {
+                create: {
+                  fileName:
+                    file.originalname,
+                  filePath:
+                    `/uploads/reactivation-requests/${file.filename}`,
+                  fileType:
+                    file.mimetype,
+                  fileSize:
+                    file.size,
+                },
+              },
+
+              /*
+               * Only one approval is created:
+               * ADMIN approval.
+               */
+              approvals: {
+                create: {
+                  reviewerType:
+                    "ADMIN",
+                  reviewerUserId:
+                    null,
+                  reviewerAgentId:
+                    null,
+                  status:
+                    "PENDING",
+                  approvalOrder: 1,
+                  isRequired: true,
+                },
+              },
+            },
+
+            include: {
+              attachments: true,
+              approvals: true,
+            },
+          });
+
+        const adminApproval =
+          request.approvals.find(
+            (approval) =>
+              approval.reviewerType ===
+              "ADMIN"
+          );
+
+        if (!adminApproval) {
+          throw new Error(
+            "Admin approval record was not created."
+          );
+        }
+
+        const notification =
+          await tx.agentNotification.create({
+            data: {
+              agentId:
+                agent.id,
+              type:
+                NotificationType.REACTIVATION_REQUEST,
+              title:
+                "REACTIVATION REQUEST SUBMITTED",
+              entityId:
+                request.id,
+              message:
+                "Your formal written reactivation request has been submitted and is waiting for admin approval.",
+            },
+          });
+
+        return {
+          request,
+          adminApproval,
+          notification,
+        };
+      }
+    );
+
+  /*
+   * Emit socket events only after
+   * the transaction succeeds.
+   */
+  emitAdminReactivationApproval({
+    requestId:
+      result.request.id,
+    approvalId:
+      result.adminApproval.id,
+    agentId:
+      agent.id,
+    agentName:
+      agent.fullName,
+    reviewerType:
+      "ADMIN",
+    title:
+      "New Reactivation Approval",
+    message:
+      `${submittingUser.username} submitted a reactivation request for ${agent.fullName}.`,
+    createdAt:
+      new Date(),
+  });
+
+  emitNotification(
+    result.notification.agentId,
+    {
+      id:
+        result.notification.id,
+      title:
+        result.notification.title,
+      message:
+        result.notification.message,
+      type:
+        result.notification.type,
+      isRead:
+        result.notification.isRead,
+      createdAt:
+        result.notification.createdAt,
+    }
+  );
+
+  return result.request;
+};
+
 export const getMyReactivationApprovalsService =
   async (
     userId: number,
@@ -1190,8 +1249,8 @@ export const getMyReactivationApprovalsService =
       throw new Error("User not found.");
     }
 
-    const isAdmin = user.roles.some(
-      (userRole) => userRole.role.name === "ADMIN"
+    const isAdmin = user.roles.some(({ role }) =>
+      ["ADMIN", "OPERATIONS", "BRANCH_ACC"].includes(role.name)
     );
 
     const searchCondition = search?.trim()
@@ -1315,510 +1374,11 @@ export const getMyReactivationApprovalsService =
   };
 
 
-
-// export const reviewReactivationApprovalService =
-//   async (
-//     userId: number,
-//     payload: {
-//       approvalId: string;
-//       status: "APPROVED" | "REJECTED";
-//       remarks?: string;
-//     }
-//   ) => {
-//     const user =
-//       await prisma.user.findUnique({
-//         where: {
-//           id: userId,
-//         },
-//         include: {
-//           roles: {
-//             include: {
-//               role: true,
-//             },
-//           },
-//           agent: true,
-//         },
-//       });
-
-//     if (!user) {
-//       throw new Error("User not found.");
-//     }
-
-//     const isAdmin =
-//       user.roles.some(
-//         (userRole) =>
-//           userRole.role.name === "ADMIN"
-//       );
-
-//     const approval =
-//       await prisma.agentReactivationApproval.findUnique({
-//         where: {
-//           id: payload.approvalId,
-//         },
-//         include: {
-//           request: {
-//             include: {
-//               agent: true,
-//             },
-//           },
-//         },
-//       });
-
-//     if (!approval) {
-//       throw new Error(
-//         "Approval request not found."
-//       );
-//     }
-
-//     if (approval.status !== "PENDING") {
-//       throw new Error(
-//         "This approval request has already been reviewed."
-//       );
-//     }
-
-//     if (
-//       approval.reviewerType === "ADMIN" &&
-//       !isAdmin
-//     ) {
-//       throw new Error(
-//         "Only admin can approve this request."
-//       );
-//     }
-
-//     if (
-//       approval.reviewerType === "UPLINE_AGENT" &&
-//       approval.reviewerAgentId !== user.agentId
-//     ) {
-//       throw new Error(
-//         "Only the assigned upline agent can approve this request."
-//       );
-//     }
-
-//     const pendingPreviousApproval =
-//       await prisma.agentReactivationApproval.findFirst({
-//         where: {
-//           requestId: approval.requestId,
-//           approvalOrder: {
-//             lt: approval.approvalOrder,
-//           },
-//           isRequired: true,
-//           status: {
-//             not: "APPROVED",
-//           },
-//         },
-//       });
-
-//     if (pendingPreviousApproval) {
-//       throw new Error(
-//         "Previous approval step must be completed first."
-//       );
-//     }
-
-//     return prisma.$transaction(
-//       async (tx) => {
-//         const updatedApproval =
-//           await tx.agentReactivationApproval.update({
-//             where: {
-//               id: approval.id,
-//             },
-//             data: {
-//               status: payload.status,
-//               remarks: payload.remarks,
-//               reviewedAt: new Date(),
-
-//               ...(approval.reviewerType === "ADMIN" && {
-//                 reviewerUserId: user.id,
-//               }),
-//             },
-//           });
-
-//         if (payload.status === "REJECTED") {
-//           const request =
-//             await tx.agentReactivationRequest.update({
-//               where: {
-//                 id: approval.requestId,
-//               },
-//               data: {
-//                 status: "FAILED",
-//                 failedAt: new Date(),
-//                 remarks:
-//                   payload.remarks ??
-//                   "Reactivation request rejected.",
-//               },
-//             });
-
-//           await tx.agentNotification.create({
-//             data: {
-//               agentId: approval.request.agentId,
-//               type: NotificationType.MAINTENANCE_REJECTED,
-//               title: "REACTIVATION REQUEST REJECTED",
-//               message:
-//                 "Your admin reactivation request has been rejected.",
-//             },
-//           });
-
-//           return {
-//             approvalId: updatedApproval.id,
-//             requestId: request.id,
-//             approvalStatus: updatedApproval.status,
-//             requestStatus: request.status,
-//           };
-//         }
-
-//         const approvals =
-//           await tx.agentReactivationApproval.findMany({
-//             where: {
-//               requestId: approval.requestId,
-//               isRequired: true,
-//             },
-//           });
-
-//         const allApproved =
-//           approvals.every(
-//             (item) =>
-//               item.id === approval.id
-//                 ? payload.status === "APPROVED"
-//                 : item.status === "APPROVED"
-//           );
-
-//         if (!allApproved) {
-//           return {
-//             approvalId: updatedApproval.id,
-//             requestId: approval.requestId,
-//             approvalStatus: updatedApproval.status,
-//             requestStatus: approval.request.status,
-//           };
-//         }
-
-//         const now = new Date();
-
-//         const probationEndsAt =
-//           new Date(now);
-
-//         probationEndsAt.setDate(
-//           probationEndsAt.getDate() + 60
-//         );
-
-//         const request =
-//           await tx.agentReactivationRequest.update({
-//             where: {
-//               id: approval.requestId,
-//             },
-//             data: {
-//               status: "PROBATION",
-//               requiredSales: 3,
-//               approvedAt: now,
-//               probationStartedAt: now,
-//               probationEndsAt,
-//             },
-//           });
-
-        
-//         await tx.agent.update({
-//           where: {
-//             id: approval.request.agentId,
-//           },
-//           data: {
-//             status: "PROBATION",
-//           },
-//         });
-
-//         await tx.agentNotification.create({
-//           data: {
-//             agentId: approval.request.agentId,
-//             type: NotificationType.MAINTENANCE_PROBATION,
-//             title: "REACTIVATION REQUEST APPROVED",
-//             message:
-//               "Your admin reactivation request has been approved. You are now under probation period.",
-//           },
-//         });
-
-//         return {
-//           approvalId: updatedApproval.id,
-//           requestId: request.id,
-//           approvalStatus: updatedApproval.status,
-//           requestStatus: request.status,
-//         };
-//       }
-//     );
-//   };
-
-
-
-// export const reviewReactivationApprovalService =
-//   async (
-//     userId: number,
-//     payload: {
-//       approvalId: string;
-//       status: "APPROVED" | "REJECTED";
-//       remarks?: string;
-//     }
-//   ) => {
-//     const user = await prisma.user.findUnique({
-//       where: {
-//         id: userId,
-//       },
-//       include: {
-//         roles: {
-//           include: {
-//             role: true,
-//           },
-//         },
-//         agent: true,
-//       },
-//     });
-
-//     if (!user) {
-//       throw new Error("User not found.");
-//     }
-
-//     const isAdmin = user.roles.some(
-//       (userRole) => userRole.role.name === "ADMIN"
-//     );
-
-//     const approval =
-//       await prisma.agentReactivationApproval.findUnique({
-//         where: {
-//           id: payload.approvalId,
-//         },
-//         include: {
-//           request: {
-//             include: {
-//               agent: true,
-//             },
-//           },
-//         },
-//       });
-
-//     if (!approval) {
-//       throw new Error("Approval request not found.");
-//     }
-
-//     if (approval.status !== "PENDING") {
-//       throw new Error(
-//         "This approval request has already been reviewed."
-//       );
-//     }
-
-//     if (
-//       approval.reviewerType === "ADMIN" &&
-//       !isAdmin
-//     ) {
-//       throw new Error(
-//         "Only admin can approve this request."
-//       );
-//     }
-
-//     if (
-//       approval.reviewerType === "UPLINE_AGENT" &&
-//       approval.reviewerAgentId !== user.agentId
-//     ) {
-//       throw new Error(
-//         "Only the assigned upline agent can approve this request."
-//       );
-//     }
-
-//     const pendingPreviousApproval =
-//       await prisma.agentReactivationApproval.findFirst({
-//         where: {
-//           requestId: approval.requestId,
-//           approvalOrder: {
-//             lt: approval.approvalOrder,
-//           },
-//           isRequired: true,
-//           status: {
-//             not: "APPROVED",
-//           },
-//         },
-//       });
-
-//     if (pendingPreviousApproval) {
-//       throw new Error(
-//         "Previous approval step must be completed first."
-//       );
-//     }
-
-//     return prisma.$transaction(async (tx) => {
-//       const now = new Date();
-
-//       const updatedApproval =
-//         await tx.agentReactivationApproval.update({
-//           where: {
-//             id: approval.id,
-//           },
-//           data: {
-//             status: payload.status,
-//             remarks: payload.remarks,
-//             reviewedAt: now,
-
-//             ...(approval.reviewerType === "ADMIN" && {
-//               reviewerUserId: user.id,
-//             }),
-//           },
-//         });
-
-//       if (payload.status === "REJECTED") {
-//         const request =
-//           await tx.agentReactivationRequest.update({
-//             where: {
-//               id: approval.requestId,
-//             },
-//             data: {
-//               status: "FAILED",
-//               failedAt: now,
-//               remarks:
-//                 payload.remarks ??
-//                 "Reactivation request rejected.",
-//             },
-//           });
-
-//         const notification =
-//           await tx.agentNotification.create({
-//             data: {
-//               agentId: approval.request.agentId,
-//               type: NotificationType.MAINTENANCE_REJECTED,
-//               title: "REACTIVATION REQUEST REJECTED",
-//               message:
-//                 "Your admin reactivation request has been rejected.",
-//             },
-//           });
-
-//         emitNotification(
-//           approval.request.agentId,
-//           notification
-//         );
-
-//         return {
-//           approvalId: updatedApproval.id,
-//           requestId: request.id,
-//           approvalStatus: updatedApproval.status,
-//           requestStatus: request.status,
-//         };
-//       }
-
-//       const approvals =
-//         await tx.agentReactivationApproval.findMany({
-//           where: {
-//             requestId: approval.requestId,
-//             isRequired: true,
-//           },
-//         });
-
-//       const allApproved =
-//         approvals.every((item) =>
-//           item.id === approval.id
-//             ? payload.status === "APPROVED"
-//             : item.status === "APPROVED"
-//         );
-
-//       /**
-//        * UPLINE approved, but admin is still pending.
-//        * Emit the request to admin room now.
-//        */
-//       if (
-//         !allApproved &&
-//         approval.reviewerType === "UPLINE_AGENT" &&
-//         payload.status === "APPROVED"
-//       ) {
-//         const adminApproval =
-//           await tx.agentReactivationApproval.findFirst({
-//             where: {
-//               requestId: approval.requestId,
-//               reviewerType: "ADMIN",
-//               status: "PENDING",
-//             },
-//           });
-
-//         if (adminApproval) {
-//           emitAdminReactivationApproval({
-//             requestId: approval.requestId,
-//             approvalId: adminApproval.id,
-//             agentId: approval.request.agentId,
-//             agentName: approval.request.agent.fullName,
-//             reviewerType: "ADMIN",
-//             title: "New Reactivation Approval",
-//             message: `${approval.request.agent.fullName}'s reactivation request is now ready for admin approval.`,
-//             createdAt: now,
-//           });
-//         }
-
-//         return {
-//           approvalId: updatedApproval.id,
-//           requestId: approval.requestId,
-//           approvalStatus: updatedApproval.status,
-//           requestStatus: approval.request.status,
-//         };
-//       }
-
-//       if (!allApproved) {
-//         return {
-//           approvalId: updatedApproval.id,
-//           requestId: approval.requestId,
-//           approvalStatus: updatedApproval.status,
-//           requestStatus: approval.request.status,
-//         };
-//       }
-
-//       const probationEndsAt = new Date(now);
-
-//       probationEndsAt.setDate(
-//         probationEndsAt.getDate() + 60
-//       );
-
-//       const request =
-//         await tx.agentReactivationRequest.update({
-//           where: {
-//             id: approval.requestId,
-//           },
-//           data: {
-//             status: "PROBATION",
-//             requiredSales: 3,
-//             approvedAt: now,
-//             probationStartedAt: now,
-//             probationEndsAt,
-//           },
-//         });
-
-//       await tx.agent.update({
-//         where: {
-//           id: approval.request.agentId,
-//         },
-//         data: {
-//           status: "PROBATION",
-//         },
-//       });
-
-//       const notification =
-//         await tx.agentNotification.create({
-//           data: {
-//             agentId: approval.request.agentId,
-//             type: NotificationType.MAINTENANCE_PROBATION,
-//             title: "REACTIVATION REQUEST APPROVED",
-//             message:
-//               "Your admin reactivation request has been approved. You are now under probation period.",
-//           },
-//         });
-
-//       emitNotification(
-//         approval.request.agentId,
-//         notification
-//       );
-
-//       return {
-//         approvalId: updatedApproval.id,
-//         requestId: request.id,
-//         approvalStatus: updatedApproval.status,
-//         requestStatus: request.status,
-//       };
-//     });
-//   };
-
-
-export const reviewReactivationApprovalService = async (
+export const rejectReactivationApprovalService = async (
   userId: number,
   payload: {
     approvalId: string;
-    status: "APPROVED" | "REJECTED";
+    status: "REJECTED";
     remarks?: string;
   }
 ) => {
@@ -1840,9 +1400,6 @@ export const reviewReactivationApprovalService = async (
     throw new Error("User not found.");
   }
 
-  const isAdmin = user.roles.some(
-    (userRole) => userRole.role.name === "ADMIN"
-  );
 
   const approval =
     await prisma.agentReactivationApproval.findUnique({
@@ -1853,7 +1410,14 @@ export const reviewReactivationApprovalService = async (
         request: {
           include: {
             agent: true,
+            submittedBranch:{
+              select:{
+                branchCode:true,
+                companyName: true
+              }
+            }
           },
+          
         },
       },
     });
@@ -1868,44 +1432,6 @@ export const reviewReactivationApprovalService = async (
     );
   }
 
-  if (
-    approval.reviewerType === "ADMIN" &&
-    !isAdmin
-  ) {
-    throw new Error(
-      "Only admin can approve this request."
-    );
-  }
-
-  if (
-    approval.reviewerType === "UPLINE_AGENT" &&
-    approval.reviewerAgentId !== user.agentId
-  ) {
-    throw new Error(
-      "Only the assigned upline agent can approve this request."
-    );
-  }
-
-  const pendingPreviousApproval =
-    await prisma.agentReactivationApproval.findFirst({
-      where: {
-        requestId: approval.requestId,
-        approvalOrder: {
-          lt: approval.approvalOrder,
-        },
-        isRequired: true,
-        status: {
-          not: "APPROVED",
-        },
-      },
-    });
-
-  if (pendingPreviousApproval) {
-    throw new Error(
-      "Previous approval step must be completed first."
-    );
-  }
-
   const result = await prisma.$transaction(async (tx) => {
     const now = new Date();
 
@@ -1915,7 +1441,7 @@ export const reviewReactivationApprovalService = async (
           id: approval.id,
         },
         data: {
-          status: payload.status,
+          status: "REJECTED",
           remarks: payload.remarks,
           reviewedAt: now,
 
@@ -1925,168 +1451,36 @@ export const reviewReactivationApprovalService = async (
         },
       });
 
-      if (payload.status === "REJECTED") {
-        const rejectionMessage =
-          approval.reviewerType === "UPLINE_AGENT"
-            ? "Your upline agent rejected your reactivation request."
-            : "Your admin reactivation request has been rejected.";
-
-        const request =
-          await tx.agentReactivationRequest.update({
-            where: {
-              id: approval.requestId,
-            },
-            data: {
-              status: "FAILED",
-              failedAt: now,
-              remarks:
-                payload.remarks ??
-                "Reactivation request rejected.",
-            },
-          });
-
-        await tx.agentReactivationApproval.updateMany({
-          where: {
-            requestId: approval.requestId,
-            id: {
-              not: approval.id,
-            },
-            status: "PENDING",
-          },
-          data: {
-            status: "REJECTED",
-            remarks:
-              approval.reviewerType === "UPLINE_AGENT"
-                ? "Auto-rejected because the upline agent rejected the request."
-                : "Auto-rejected because the admin rejected the request.",
-            reviewedAt: now,
-          },
-        });
-
-        const notification =
-          await tx.agentNotification.create({
-            data: {
-              agentId: approval.request.agentId,
-              type: NotificationType.REACTIVATION_REQUEST,
-              title: "REACTIVATION REQUEST REJECTED",
-              message: rejectionMessage,
-            },
-          });
-
-        return {
-          approvalId: updatedApproval.id,
-          requestId: request.id,
-          approvalStatus: updatedApproval.status,
-          requestStatus: request.status,
-          notifications: [notification],
-          adminApprovalPayload: null,
-          adminPaymentPayload: null,
-        };
-      }
-
-    const approvals =
-      await tx.agentReactivationApproval.findMany({
+    const request =
+      await tx.agentReactivationRequest.update({
         where: {
-          requestId: approval.requestId,
-          isRequired: true,
+          id: approval.requestId,
+        },
+        data: {
+          status: "FAILED",
+          requiredSales: 0,
+          failedAt: now,
+          remarks:
+            payload.remarks ??
+            "Reactivation request rejected.",
         },
       });
 
-    const allApproved = approvals.every((item) =>
-      item.id === approval.id
-        ? payload.status === "APPROVED"
-        : item.status === "APPROVED"
-    );
-
-    if (
-      !allApproved &&
-      approval.reviewerType === "UPLINE_AGENT" &&
-      payload.status === "APPROVED"
-    ) {
-      const adminApproval =
-        await tx.agentReactivationApproval.findFirst({
-          where: {
-            requestId: approval.requestId,
-            reviewerType: "ADMIN",
-            status: "PENDING",
-          },
-        });
-
-      return {
-        approvalId: updatedApproval.id,
-        requestId: approval.requestId,
-        approvalStatus: updatedApproval.status,
-        requestStatus: approval.request.status,
-        notifications: [],
-        adminApprovalPayload: adminApproval
-          ? {
-              requestId: approval.requestId,
-              approvalId: adminApproval.id,
-              agentId: approval.request.agentId,
-              agentName: approval.request.agent.fullName,
-              reviewerType: "ADMIN" as const,
-              title: "New Reactivation Approval",
-              message: `${approval.request.agent.fullName}'s reactivation request is now ready for admin approval.`,
-              createdAt: now,
-            }
-          : null,
-      };
-    }
-
-    if (!allApproved) {
-      return {
-        approvalId: updatedApproval.id,
-        requestId: approval.requestId,
-        approvalStatus: updatedApproval.status,
-        requestStatus: approval.request.status,
-        notifications: [],
-        adminApprovalPayload: null,
-      };
-    }
-
-    const request = await tx.agentReactivationRequest.update({
+    await tx.agentReactivationApproval.updateMany({
       where: {
-        id: approval.requestId,
-      },
-      data: {
-        status: "APPROVED_WAITING_PAYMENT",
-        approvedAt: now,
-        remarks:
-          payload.remarks ??
-          "Reactivation request approved. Waiting for payment.",
-      },
-    });
-
-    const payment = await tx.agentReactivationPayment.upsert({
-      where: {
-        requestId: request.id,
-      },
-      update: {},
-      create: {
-        requestId: request.id,
-        agentId: approval.request.agentId,
-        amount: 500,
-        currency: "PHP",
-        provider: "XENDIT",
+        requestId: approval.requestId,
+        id: {
+          not: approval.id,
+        },
         status: "PENDING",
       },
-      include: {
-        agent: {
-          select: {
-            id: true,
-            fullName: true,
-            agentCode: true,
-            level: true,
-          },
-        },
-        request: {
-          select: {
-            id: true,
-            status: true,
-            requestType: true,
-            requestedAt: true,
-          },
-        },
+      data: {
+        status: "REJECTED",
+        remarks:
+          approval.reviewerType === "UPLINE_AGENT"
+            ? "Auto-rejected because the upline agent rejected the request."
+            : "Auto-rejected because the admin rejected the request.",
+        reviewedAt: now,
       },
     });
 
@@ -2094,13 +1488,12 @@ export const reviewReactivationApprovalService = async (
       await tx.agentNotification.create({
         data: {
           agentId: approval.request.agentId,
-          type: NotificationType.REACTIVATION_PAYMENT,
-          title: "REACTIVATION REQUEST APPROVED",
-          actionType: NotificationActionType.PROCEED_PAYMENT,
-          entityId: request.id,
-          actionResult: ActionResult.PAYMENT_PENDING,
+          type: NotificationType.REACTIVATION_REQUEST,
+          title: "REACTIVATION REQUEST REJECTED",
           message:
-            "Your admin reactivation request has been approved. Pay ₱500 to continue reactivation.",
+            approval.reviewerType === "UPLINE_AGENT"
+              ? "Your upline agent rejected your reactivation request."
+              : "Your admin rejected your reactivation request.",
         },
       });
 
@@ -2110,16 +1503,30 @@ export const reviewReactivationApprovalService = async (
       approvalStatus: updatedApproval.status,
       requestStatus: request.status,
       notifications: [notification],
-      adminApprovalPayload: null,
-      adminPaymentPayload: {
-        paymentId: payment.id,
-        requestId: payment.requestId,
-        agentId: payment.agentId,
-        status: payment.status,
-        title: "New Reactivation Payment",
-        message: `${payment.agent.fullName} has a pending reactivation payment.`,
-        createdAt: now,
-      },
+
+      branchSocketPayload:
+        approval.request.submittedBranchCode
+          ? {
+              branchCode:
+                approval.request.submittedBranchCode,
+              payload: {
+                requestId: request.id,
+                approvalId: updatedApproval.id,
+                branchCode:
+                  approval.request.submittedBranchCode,
+                agentId: approval.request.agentId,
+                agentName:
+                  approval.request.agent.fullName,
+                reviewerType: "ADMIN" as const,
+                status: "REJECTED" as const,
+                title: "Reactivation Request Rejected",
+                message: `${approval.request.agent.fullName}'s reactivation request was rejected.`,
+                createdAt: now,
+              },
+            }
+          : null,
+
+      adminPaymentPayload: null,
     };
   });
 
@@ -2133,22 +1540,16 @@ export const reviewReactivationApprovalService = async (
       createdAt: notification.createdAt,
       entityId: notification.entityId,
       actionType: notification.actionType,
-      actionResult:notification.actionResult
-      
+      actionResult: notification.actionResult,
     });
   }
 
-
-  if (result.adminApprovalPayload) {
-    emitAdminReactivationApproval(
-      result.adminApprovalPayload
+  if (result.branchSocketPayload) {
+    emitBranchReactivationApproval(
+      result.branchSocketPayload.branchCode,
+      result.branchSocketPayload.payload
     );
   }
-
-  if (result.adminPaymentPayload) {
-    emitAdminPaymentUpdated(result.adminPaymentPayload);
-  }
-
 
   return {
     approvalId: result.approvalId,
@@ -2158,6 +1559,569 @@ export const reviewReactivationApprovalService = async (
   };
 };
 
+
+
+export const adminReactivationApprovalService = async (
+  userId: number,
+  payload: ReviewReactivationApprovalPayload
+) => {
+  let probationStartDate: Date | null = null;
+  let probationEndDate: Date | null = null;
+  let requiredSales: number | null = null;
+
+  /*
+   * Validate approval conditions before
+   * opening the database transaction.
+   */
+  if (payload.status === "APPROVED") {
+    requiredSales = Number(payload.requiredSales);
+
+    if (
+      !Number.isInteger(requiredSales) ||
+      requiredSales <= 0
+    ) {
+      throw new Error(
+        "Required sales must be a positive whole number."
+      );
+    }
+
+    if (
+      !payload.probationStartDate ||
+      !payload.probationEndDate
+    ) {
+      throw new Error(
+        "Probation start and end dates are required."
+      );
+    }
+
+    probationStartDate = new Date(
+      `${payload.probationStartDate}T00:00:00.000Z`
+    );
+
+    probationEndDate = new Date(
+      `${payload.probationEndDate}T23:59:59.999Z`
+    );
+
+    if (
+      Number.isNaN(probationStartDate.getTime()) ||
+      Number.isNaN(probationEndDate.getTime())
+    ) {
+      throw new Error(
+        "Invalid probation dates."
+      );
+    }
+
+    if (
+      probationEndDate <
+      probationStartDate
+    ) {
+      throw new Error(
+        "Probation end date cannot be earlier than the start date."
+      );
+    }
+
+    if (!payload.remarks?.trim()) {
+      throw new Error(
+        "Approval remarks are required."
+      );
+    }
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    include: {
+      roles: {
+        include: {
+          role: true,
+        },
+      },
+      agent: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  // const isAdmin = user.roles.some(
+  //   (userRole) => userRole.role.name === "ADMIN"
+  // );
+
+  
+
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  const allowedRoles = [
+    "ADMIN",
+    "OPERATIONS",
+  ];
+
+  const isAllowed = user.roles.some(
+    (userRole) =>
+      allowedRoles.includes(
+        userRole.role.name
+      )
+  );
+
+  if (!isAllowed) {
+    throw new Error(
+      "Only Admin or Operations can review this request."
+    );
+  }
+
+ const approval =
+    await prisma.agentReactivationApproval.findUnique({
+      where: {
+        id: payload.approvalId,
+      },
+      include: {
+        request: {
+          include: {
+            agent: true,
+            submittedBranch:{
+              select:{
+                branchCode:true,
+                companyName: true
+              }
+            }
+          },
+          
+        },
+      },
+    });
+
+  if (!approval) {
+    throw new Error(
+      "Approval request not found."
+    );
+  }
+
+  if (approval.status !== "PENDING") {
+    throw new Error(
+      "This approval request has already been reviewed."
+    );
+  }
+
+  if (approval.reviewerType !== "ADMIN") {
+    throw new Error(
+      "This approval is not an admin approval."
+    );
+  }
+
+  const result =
+    await prisma.$transaction(
+      async (tx) => {
+        const now = new Date();
+
+        const updatedApproval =
+          await tx.agentReactivationApproval.update({
+            where: {
+              id: approval.id,
+            },
+            data: {
+              reviewerUserId: user.id,
+              status: payload.status,
+              remarks:
+                payload.remarks?.trim() ||
+                null,
+              reviewedAt: now,
+            },
+          });
+
+        /*
+         * REJECT
+         */
+        if (payload.status === "REJECTED") {
+          const request =
+            await tx.agentReactivationRequest.update({
+              where: {
+                id: approval.requestId,
+              },
+              data: {
+                status:
+                  ReactivationRequestStatus.FAILED,
+                failedAt: now,
+                remarks:
+                  payload.remarks?.trim() ||
+                  "Reactivation request rejected.",
+              },
+            });
+
+          const notification =
+            await tx.agentNotification.create({
+              data: {
+                agentId:
+                  approval.request.agentId,
+                type:
+                  NotificationType.REACTIVATION_REQUEST,
+                title:
+                  "REACTIVATION REQUEST REJECTED",
+                entityId:
+                  request.id,
+                message:
+                  payload.remarks?.trim()
+                    ? `Your reactivation request was rejected. Remarks: ${payload.remarks.trim()}`
+                    : "Your reactivation request has been rejected.",
+              },
+            });
+
+        return {
+          approvalId:
+            updatedApproval.id,
+
+          requestId:
+            request.id,
+
+          approvalStatus:
+            updatedApproval.status,
+
+          requestStatus:
+            request.status,
+
+          notifications: [
+            notification,
+          ],
+
+          branchPayload:
+            approval.request.submittedBranchCode
+              ? {
+                  branchCode:
+                    approval.request.submittedBranchCode,
+
+                  payload: {
+                    requestId:
+                      request.id,
+
+                    approvalId:
+                      updatedApproval.id,
+
+                    branchCode:
+                      approval.request.submittedBranchCode,
+
+                    agentId:
+                      approval.request.agentId,
+
+                    agentName:
+                      approval.request.agent.fullName,
+
+                    reviewerType:
+                      "ADMIN" as const,
+
+                    status:
+                      "REJECTED" as const,
+
+                    title:
+                      "Reactivation Request Rejected",
+
+                    message:
+                      `${approval.request.agent.fullName}'s reactivation request was rejected.`,
+
+                    createdAt:
+                      now,
+                  },
+                }
+              : null,
+        };
+        }
+
+        /*
+         * APPROVE
+         *
+         * These values are guaranteed to be
+         * non-null because they were validated
+         * above when status is APPROVED.
+         */
+        if (
+          requiredSales === null ||
+          probationStartDate === null ||
+          probationEndDate === null
+        ) {
+          throw new Error(
+            "Approval conditions are incomplete."
+          );
+        }
+
+        const request =
+          await tx.agentReactivationRequest.update({
+            where: {
+              id: approval.requestId,
+            },
+            data: {
+              status:
+                ReactivationRequestStatus.PROBATION,
+
+              approvedAt: now,
+
+              requiredSales,
+
+              probationStartedAt:
+                probationStartDate,
+
+              probationEndsAt:
+                probationEndDate,
+
+              remarks:
+                payload.remarks!.trim(),
+            },
+          });
+          
+
+        await tx.agent.update({
+          where: {
+            id:  approval.request.agentId,
+          },
+          data: {
+            status: "PROBATION",
+          },
+        });
+
+        const notification =
+          await tx.agentNotification.create({
+            data: {
+              agentId:
+                approval.request.agentId,
+
+              type:
+                NotificationType.REACTIVATION_REQUEST,
+
+              title:
+                "REACTIVATION APPROVED",
+
+              entityId:
+                request.id,
+
+              message:
+                `Your reactivation request has been approved. ` +
+                `You must complete ${requiredSales} sale${
+                  requiredSales > 1 ? "s" : ""
+                } during the probation period from ` +
+                `${payload.probationStartDate} to ${payload.probationEndDate}. `,
+            },
+          });
+
+         return {
+            approvalId: updatedApproval.id,
+            requestId: approval.requestId,
+            approvalStatus: updatedApproval.status,
+            requestStatus: approval.request.status,
+            notifications: [],
+            branchSocketPayload:
+            approval.request.submittedBranchCode
+              ? {
+                  branchCode:
+                    approval.request.submittedBranchCode,
+
+                  payload: {
+                    requestId:
+                      approval.requestId,
+
+                    approvalId:
+                      updatedApproval.id,
+
+                    branchCode:
+                      approval.request.submittedBranchCode,
+
+                    agentId:
+                      approval.request.agentId,
+
+                    agentName:
+                      approval.request.agent.fullName,
+
+                    reviewerType:
+                      "ADMIN" as const,
+
+                    status:
+                      "APPROVED" as const,
+
+                    title:
+                      "Reactivation Request Approved",
+
+                    message:
+                      `${approval.request.agent.fullName}'s reactivation request was approved.`,
+
+                    createdAt:
+                      now,
+                  },
+                }
+              : null,
+          };
+      }
+    );
+
+  /*
+   * Emit socket notifications only after
+   * the transaction succeeds.
+   */
+  for (
+    const notification of
+    result.notifications
+  ) {
+    emitNotification(
+      notification.agentId,
+      {
+        id:
+          notification.id,
+        title:
+          notification.title,
+        message:
+          notification.message,
+        type:
+          notification.type,
+        isRead:
+          notification.isRead,
+        createdAt:
+          notification.createdAt,
+        entityId:
+          notification.entityId,
+        actionType:
+          notification.actionType,
+        actionResult:
+          notification.actionResult,
+      }
+    );
+  }
+  
+  if (result.branchSocketPayload) {
+    emitBranchReactivationApproval(
+      result.branchSocketPayload.branchCode,
+      result.branchSocketPayload.payload
+    );
+  }
+  
+
+  return {
+    approvalId:
+      result.approvalId,
+    requestId:
+      result.requestId,
+    approvalStatus:
+      result.approvalStatus,
+    requestStatus:
+      result.requestStatus,
+  };
+};
+
+export const getReactivationRequestDetailsService =
+  async (
+    requestId: string
+  ): Promise<ReactivationRequestDetailsResponse> => {
+    if (!requestId?.trim()) {
+      throw new Error(
+        "Request ID is required."
+      );
+    }
+
+    const request =
+      await prisma.agentReactivationRequest.findUnique({
+        where: {
+          id: requestId.trim(),
+        },
+
+        select: {
+          id: true,
+          requiredSales: true,
+          probationStartedAt: true,
+          probationEndsAt: true,
+
+          agent: {
+            select: {
+              id: true,
+              agentCode: true,
+              fullName: true,
+              status: true,
+            },
+          },
+
+          approvals: {
+            where: {
+              reviewerType: "ADMIN",
+            },
+
+            take: 1,
+
+            select: {
+              id: true,
+              status: true,
+              remarks: true,
+              reviewedAt: true,
+
+              reviewerUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+    if (!request) {
+      throw new Error(
+        "Reactivation request not found."
+      );
+    }
+
+    const approval =
+      request.approvals[0] ?? null;
+
+    return {
+      requestId: request.id,
+
+      agent: {
+        id: request.agent.id,
+        agentCode:
+          request.agent.agentCode,
+        fullName:
+          request.agent.fullName,
+        status:
+          request.agent.status,
+      },
+
+      requiredSales:
+        request.requiredSales,
+
+      probationStartDate:
+        request.probationStartedAt
+          ? request.probationStartedAt.toISOString()
+          : null,
+
+      probationEndDate:
+        request.probationEndsAt
+          ? request.probationEndsAt.toISOString()
+          : null,
+
+      approval: approval
+        ? {
+            id: approval.id,
+            status: approval.status,
+            remarks: approval.remarks,
+
+            reviewedAt:
+              approval.reviewedAt
+                ? approval.reviewedAt.toISOString()
+                : null,
+
+            reviewer:
+              approval.reviewerUser
+                ? {
+                    id:
+                      approval.reviewerUser.id,
+                    name:
+                      approval.reviewerUser.name,
+                    username:
+                      approval.reviewerUser.username,
+                  }
+                : null,
+          }
+        : null,
+    };
+  };
 
 export const getMyReactivationApprovalProgressService = async (
   userId: number,

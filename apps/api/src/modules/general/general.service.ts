@@ -1,5 +1,10 @@
-import { GetUsersParams } from "@repo/shared";
+import { GetUsersParams, OverrideRulePayload } from "@repo/shared";
 import prisma from "../../lib/prisma";
+import { Agent } from "http";
+import { AgentLevel, AgentStatus } from "../../../generated/prisma";
+import { Prisma } from "@prisma/client";
+import { OverrideCommissionRulePayload, validateOverrideRulePayload } from "./validation/overrideCommissionRule.validation";
+
 
 export const getCommissionSettingsService =
   async () => {
@@ -141,3 +146,213 @@ export const getBranchesService = async () => {
         },
     });
 };
+
+
+
+export const searchEligibleAgentsService =
+  async (search?: string) => {
+    const normalizedSearch =
+      search?.trim() ?? "";
+
+    if (normalizedSearch.length < 2) {
+      return {
+        data: [],
+      };
+    }
+
+    const excludedStatuses: AgentStatus[] = [
+      AgentStatus.REJECTED,
+      AgentStatus.PENDING,
+      AgentStatus.DROPPED,
+      AgentStatus.SUSPENDED,
+    ];
+
+    const agents =
+      await prisma.agent.findMany({
+        where: {
+          status: {
+            notIn: excludedStatuses,
+          },
+
+          OR: [
+            {
+              agentCode: {
+                contains: normalizedSearch,
+                mode: "insensitive",
+              },
+            },
+            {
+              fullName: {
+                contains: normalizedSearch,
+                mode: "insensitive",
+              },
+            },
+          ],
+        },
+
+        take: 20,
+
+        orderBy: {
+          fullName: "asc",
+        },
+
+        select: {
+          id: true,
+          agentCode: true,
+          fullName: true,
+          level: true,
+          status: true,
+        },
+      });
+
+    return {
+      data: agents,
+    };
+  };
+
+
+
+
+
+export async function createOverrideCommissionRuleService(
+  payload: OverrideCommissionRulePayload
+) {
+  const validated =
+    validateOverrideRulePayload(
+      payload
+    );
+
+  const existingRule =
+    await prisma.overrideCommissionRule.findFirst({
+      where: {
+        receiverLevel:
+          validated.receiverLevel,
+
+        sourceLevel:
+          validated.sourceLevel,
+      },
+
+      select: {
+        id: true,
+      },
+    });
+
+  if (existingRule) {
+    throw new Error(
+      "An override rule already exists for these levels."
+    );
+  }
+
+  return prisma.overrideCommissionRule.create({
+    data: {
+      receiverLevel:
+        validated.receiverLevel,
+
+      sourceLevel:
+        validated.sourceLevel,
+
+      amount:
+        validated.amount,
+    },
+  });
+}
+
+export async function updateOverrideCommissionRuleService(
+  id: string,
+  payload: OverrideCommissionRulePayload
+) {
+  const validated =
+    validateOverrideRulePayload(
+      payload
+    );
+
+  const existingRule =
+    await prisma.overrideCommissionRule.findUnique({
+      where: {
+        id,
+      },
+
+      select: {
+        id: true,
+      },
+    });
+
+  if (!existingRule) {
+    throw new Error(
+      "Override commission rule not found."
+    );
+  }
+
+  const duplicateRule =
+    await prisma.overrideCommissionRule.findFirst({
+      where: {
+        receiverLevel:
+          validated.receiverLevel,
+
+        sourceLevel:
+          validated.sourceLevel,
+
+        NOT: {
+          id,
+        },
+      },
+
+      select: {
+        id: true,
+      },
+    });
+
+  if (duplicateRule) {
+    throw new Error(
+      "Another override rule already exists for these levels."
+    );
+  }
+
+  return prisma.overrideCommissionRule.update({
+    where: {
+      id,
+    },
+
+    data: {
+      receiverLevel:
+        validated.receiverLevel,
+
+      sourceLevel:
+        validated.sourceLevel,
+
+      amount:
+        validated.amount,
+    },
+  });
+}
+
+export async function deleteOverrideCommissionRuleService(
+  id: string
+) {
+  const existingRule =
+    await prisma.overrideCommissionRule.findUnique({
+      where: {
+        id,
+      },
+
+      select: {
+        id: true,
+      },
+    });
+
+  if (!existingRule) {
+    throw new Error(
+      "Override commission rule not found."
+    );
+  }
+
+  await prisma.overrideCommissionRule.delete({
+    where: {
+      id,
+    },
+  });
+
+  return {
+    id,
+  };
+}

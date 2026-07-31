@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { getAllUsers, getBranchesService, getCommissionSettingsService, getRolesService } from "./general.service";
+import { createOverrideCommissionRuleService, deleteOverrideCommissionRuleService, getAllUsers, getBranchesService, getCommissionSettingsService, getRolesService, searchEligibleAgentsService, updateOverrideCommissionRuleService } from "./general.service";
 
 export const getCommissionSettingsController =
   async (
@@ -115,3 +115,160 @@ export const getBranchesController = async (
         next(err);
     }
 };
+
+
+
+
+export const searchEligibleAgentsController =
+  async (
+    req: Request,
+    res: Response
+  ) => {
+    try {
+      const search =
+        typeof req.query.search ===
+        "string"
+          ? req.query.search
+          : "";
+
+      const result =
+        await searchEligibleAgentsService(
+          search
+        );
+
+      return res.status(200).json(
+        result
+      );
+    } catch (error) {
+      console.error(
+        "SEARCH ELIGIBLE AGENTS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to search agents.",
+      });
+    }
+  };
+
+
+export async function createOverrideCommissionRuleController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result =
+      await createOverrideCommissionRuleService({
+        receiverLevel:
+          req.body.receiverLevel,
+
+        sourceLevel:
+          req.body.sourceLevel,
+
+        amount:
+          Number(
+            req.body.amount
+          ),
+      });
+
+    return res.status(201).json({
+      success: true,
+
+      message:
+        "Override commission rule created successfully.",
+
+      data:
+        result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateOverrideCommissionRuleController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id =
+      req.params.id;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Override rule ID is required.",
+      });
+    }
+
+    const result =
+      await updateOverrideCommissionRuleService(
+        id,
+        {
+          receiverLevel:
+            req.body.receiverLevel,
+
+          sourceLevel:
+            req.body.sourceLevel,
+
+          amount:
+            Number(
+              req.body.amount
+            ),
+        }
+      );
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "Override commission rule updated successfully.",
+
+      data:
+        result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteOverrideCommissionRuleController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id =
+      req.params.id;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Override rule ID is required.",
+      });
+    }
+
+    const result =
+      await deleteOverrideCommissionRuleService(
+        id
+      );
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "Override commission rule deleted successfully.",
+
+      data:
+        result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

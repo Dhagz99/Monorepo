@@ -10,6 +10,9 @@ import {
   TransactionHistParams,
   UpdateAgentAccSchema,
   GetRemainingSalesResponse,
+  UpdateAdminAccSchema,
+  AgentEditDetails,
+  UpdateAgentDetailsPayload,
 } from "@repo/shared";
 
 import {
@@ -24,40 +27,10 @@ import {
   emitAdminReactivationApproval,
   emitUplineReactivationApproval,
 } from "../../socket/socketEmitter";
+import { formatDateForResponse, normalizeNullableString, parseAgentGender, parseNullableDate } from "./helper/agent.helper";
 
 
-// export const searchAgents = async (
-//   search?: string
-// ) => {
 
-//   if (!search) {
-//     return [];
-//   }
-
-//   const agents =
-//     await prisma.agent.findMany({
-//       where: {
-//         fullName: {
-//           contains: search,
-//           mode: "insensitive",
-//         },
-
-//         deletedAt: null,
-//       },
-
-//       select: {
-//         id: true,
-//         fullName: true,
-//         level: true,
-//         status: true,
-//         agentCode: true,
-//       },
-
-//       take: 10,
-//     });
-
-//   return agents;
-// };
 
 export const getUniqueInfo = async (
   params: CheckUniqueInfoParams
@@ -125,92 +98,82 @@ export const getUniqueInfo = async (
   };
 };
 
-
-export const searchAgents = async (
-  search?: string,
-  branchCodes?: string[]
+export const searchAgentsReactivate = async (
+  search?: string
 ) => {
-
-  if (!search) {
+if (!search?.trim()) {
     return [];
   }
 
-  const agents =
-    await prisma.agent.findMany({
-
-      where: {
-
-        fullName: {
-          contains: search,
-          mode: "insensitive",
-        },
-
-        deletedAt: null,
-
-        ...(branchCodes &&
-          branchCodes.length > 0 && {
-
-          branches: {
-            some: {
-              branchId: {
-                in: branchCodes,
-              },
-
-              isActive: true,
-            },
-          },
-        }),
+  const agents = await prisma.agent.findMany({
+    where: {
+      fullName: {
+        contains: search.trim(),
+        mode: "insensitive",
       },
 
-      include: {
+      deletedAt: null,
 
-        parentAgent: {
-          select: {
-            id: true,
-            fullName: true,
-            level: true,
-            agentCode: true,
-          },
-        },
-
-        downlines: {
-          select: {
-            id: true,
-            level: true,
-          },
-        },
+      status: {
+        notIn: [
+          "PENDING",
+          "REJECTED",
+          "ACTIVE",
+          "PROBATION",
+        ],
       },
+    },
 
-      take: 10,
-    });
+    orderBy: {
+      fullName: "asc",
+    },
+
+    take: 10,
+  });
 
   return agents;
 };
 
-// export const searchBranchs = async (
-//     search?: string
-// ) => {
-//     if(!search){
-//         return[];
-//     }
-//     const branches =
-//         await prisma.branch.findMany({
-//             where:{
-//                 companyName:{
-//                     contains: search,
-//                     mode: "insensitive"
-//                 },
 
-//                 deletedAt: null,
-//             },
-//             select:{
-//                 branchCode:true,
-//                 companyName:true,
-//             },
-//             take: 10
-//         });
-//     return branches;
-// }
+export const searchAgents = async (
+  search?: string,
+) => {
+  if (!search?.trim()) {
+    return [];
+  }
+
+  const agents = await prisma.agent.findMany({
+    where: {
+      fullName: {
+        contains: search.trim(),
+        mode: "insensitive",
+      },
+
+      deletedAt: null,
+
+      level: {
+        in: ["L1", "L2"],
+      },
+
+      status: {
+        notIn: [
+          "PENDING",
+          "REJECTED",
+          "DROPPED",
+          "SUSPENDED",
+        ],
+      },
+    },
+
+    orderBy: {
+      fullName: "asc",
+    },
+
+    take: 10,
+  });
+
+  return agents;
+};
 
 export const searchBranchs = async (
   search?: string
@@ -219,12 +182,6 @@ export const searchBranchs = async (
   if (!search) {
     return [];
   }
-
-  const MAX_L1 = 10;
-
-  const MAX_L2_PER_L1 = 10;
-
-  const MAX_L3_PER_L2 = 10;
 
   const branches =
     await prisma.branch.findMany({
@@ -238,138 +195,10 @@ export const searchBranchs = async (
         deletedAt: null,
       },
 
-      include: {
-
-        agents: {
-
-          where: {
-            isActive: true,
-          },
-
-          include: {
-
-            agent: {
-
-              include: {
-
-                downlines: {
-                  where: {
-                    deletedAt: null,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-
       take: 10,
     });
 
   return branches.map((branch) => {
-
-    const agents =
-      branch.agents.map(
-        (a) => a.agent
-      );
-
-    /* =====================================
-       BRANCH COUNTS
-       ONLY L1 IS BRANCH-BASED
-    ===================================== */
-
-    const l1Agents =
-      agents.filter(
-        (a) => a.level === "L1"
-      );
-
-    const l2Agents =
-      agents.filter(
-        (a) => a.level === "L2"
-      );
-
-    const l3Agents =
-      agents.filter(
-        (a) => a.level === "L3"
-      );
-
-    /* =====================================
-       GLOBAL UPLINE VACANCY
-       NOT BRANCH-BASED
-    ===================================== */
-
-    const availableUplines =
-      agents
-        .filter(
-          (agent) =>
-            agent.level === "L1" ||
-            agent.level === "L2"
-        )
-        .map((agent) => {
-
-          /* =========================
-             GLOBAL DOWNLINE COUNTS
-          ========================= */
-
-          const l2Count =
-            agent.downlines.filter(
-              (d) =>
-                d.level === "L2"
-            ).length;
-
-          const l3Count =
-            agent.downlines.filter(
-              (d) =>
-                d.level === "L3"
-            ).length;
-
-          /* =========================
-             GLOBAL SLOT REMAINING
-          ========================= */
-
-          const availableL2Slots =
-            agent.level === "L1"
-              ? MAX_L2_PER_L1 - l2Count
-              : 0;
-
-          const availableL3Slots =
-            agent.level === "L2"
-              ? MAX_L3_PER_L2 - l3Count
-              : 0;
-
-          const hasVacancy =
-            agent.level === "L1"
-              ? availableL2Slots > 0
-              : availableL3Slots > 0;
-
-          return {
-
-            id: agent.id,
-
-            fullName:
-              agent.fullName,
-
-            level:
-              agent.level,
-
-            agentCode:
-              agent.agentCode,
-
-            l2Count,
-
-            l3Count,
-
-            availableL2Slots,
-
-            availableL3Slots,
-
-            hasVacancy,
-          };
-        })
-        .filter(
-          (upline) =>
-            upline.hasVacancy
-        );
 
     return {
 
@@ -379,151 +208,11 @@ export const searchBranchs = async (
       companyName:
         branch.companyName,
 
-      /* =====================================
-         ONLY L1 CAPACITY IS BRANCH-BASED
-      ===================================== */
-
-      capacity: {
-
-        totalL1:
-          l1Agents.length,
-
-        totalL2:
-          l2Agents.length,
-
-        totalL3:
-          l3Agents.length,
-
-        availableL1Slots:
-          MAX_L1 -
-          l1Agents.length,
-      },
-
-      /* =====================================
-         GLOBAL MLM UPLINES
-      ===================================== */
-
-      availableUplines,
     };
   });
 };
 
 
-
-// export const registerAgent =
-//   async (
-//     payload: RegisterAgentSchema
-//   ) => {
-
-//     const existingUsername =
-//       await prisma.agent.findUnique({
-//         where: {
-//           username:
-//             payload.username,
-//         },
-//       });
-
-//     if (existingUsername) {
-//       throw new Error(
-//         "Username Already Exists"
-//       );
-//     }
-
-   
-//     const existingQR =
-//       await prisma.agent.findUnique({
-//         where: {
-//           agentCode:
-//             payload.agentQrCode,
-//         },
-//       });
-
-//     if (existingQR) {
-//       throw new Error(
-//         "QR Code already exists Please Generate again"
-//       );
-//     }
-
-
-//     const temporaryPassword =
-//       generateTemporaryPassword(8);
-
-//     const hashedPassword =
-//       await bcrypt.hash(
-//         temporaryPassword,
-//         10
-//       );
-
-
-//     const agent =
-//       await prisma.agent.create({
-//         data: {
-
-   
-//           agentCode:
-//             payload.agentQrCode || "",
-
-//           username:
-//             payload.username,
-
-//           password:
-//             hashedPassword,
-
-//           fullName:
-//             payload.agentName,
-
-//           gender:
-//             payload.agentGender,
-
-//           birthDate:
-//             payload.dateBirth,
-
-//           address:
-//             payload.agentAdd,
-
-//           email:
-//             payload.email,
-
-//           telephone:
-//             payload.agentTel,
-
-//           status:
-//             AgentStatus.PENDING,
-
-//           accountType:
-//             payload.agentAccType as AccType,
-
-//           level:
-//             payload.selectedAgentLevel as AgentLevel,
-
-//           mustChangePassword:
-//             true,
-
-//           parentAgentId:
-//             payload.parentAgentId || null,
-
-//           branches: {
-//             create:
-//               payload.branches.map(
-//                 (branch) => ({
-//                   branchId:
-//                     branch.branchCode || "",
-//                 })
-//               ),
-//           },
-//         },
-
-//         include: {
-//           branches: {
-//             include: {
-//               branch: true,
-//             },
-//           },
-//         },
-//       });
-
-//     return agent;
-//   };
 
 export const registerAgent = async (
   payload: RegisterAgentSchema
@@ -558,34 +247,11 @@ export const registerAgent = async (
 
   const now = new Date();
 
-  const currentMonth =
-    now.getMonth() + 1;
-
-  const currentYear =
-    now.getFullYear();
-
   const currentDay =
     now.getDate();
 
   const isGracePeriod =
     currentDay > 12;
-
-  const cycleStartDate =
-    new Date(
-      currentYear,
-      currentMonth - 1,
-      1
-    );
-
-  const cycleEndDate =
-    new Date(
-      currentYear,
-      currentMonth,
-      0,
-      23,
-      59,
-      59
-    );
 
   return prisma.$transaction(
     async (tx) => {
@@ -624,6 +290,9 @@ export const registerAgent = async (
             telephone:
               payload.agentTel,
 
+            SecondaryTel:
+                payload.agentSecTel,
+
             status:
               AgentStatus.PENDING,
 
@@ -633,65 +302,10 @@ export const registerAgent = async (
             parentAgentId:
               payload.parentAgentId || null,
 
-            branches: {
-              create:
-                payload.branches.map(
-                  (branch) => ({
-                    branchId:
-                      branch.branchCode || "",
-                  })
-                ),
-            },
           },
 
-          include: {
-            branches: {
-              include: {
-                branch: true,
-              },
-            },
-          },
         });
 
-      await tx.agentMaintenanceCycle.create({
-        data: {
-          agentId:
-            agent.id,
-
-          cycleMonth:
-            currentMonth,
-
-          cycleYear:
-            currentYear,
-
-          cycleStartDate,
-
-          cycleEndDate,
-
-          requiredSales:
-            isGracePeriod
-              ? 0
-              : 1,
-
-          completedSales: 0,
-
-          remainingSales:
-            isGracePeriod
-              ? 0
-              : 1,
-
-          isCompleted:
-            isGracePeriod,
-
-          isFirstCycle:
-            true,
-
-          status:
-            isGracePeriod
-              ? "GRACE"
-              : "ACTIVE",
-        },
-      });
 
       await tx.agentNotification.create({
         data: {
@@ -790,79 +404,6 @@ export const agentTransactions = async ({
   };
 };
 
-
-// export const agentTransactionsHist = async ({
-//   agentId,
-//   limit = 5,
-//   month,
-//   year,
-// }: TransactionHistParams) => {
-
-//   const whereCondition: any = {
-//     receiverAgentId: agentId,
-//   };
-
-//   if (month && year) {
-
-//     const startDate =
-//       new Date(year, month - 1, 1);
-
-//     const endDate =
-//       new Date(year, month, 1);
-
-//     whereCondition.createdAt = {
-//       gte: startDate,
-//       lt: endDate,
-//     };
-//   }
-
-//   const [data, total] =
-//     await Promise.all([
-//       prisma.commissionTransaction.findMany({
-//         where: whereCondition,
-
-//         take: limit,
-
-//         orderBy: {
-//           createdAt: "desc",
-//         },
-
-//         include: {
-//           sourceAgent: {
-//             select: {
-//               id: true,
-//               fullName: true,
-//               level: true,
-//               agentCode: true,
-//             },
-//           },
-
-//           receiverAgent: {
-//             select: {
-//               id: true,
-//               fullName: true,
-//               level: true,
-//               agentCode: true,
-//             },
-//           },
-
-//           commissionRule: true,
-//         },
-//       }),
-
-//       prisma.commissionTransaction.count({
-//         where: whereCondition,
-//       }),
-//     ]);
-
-//   return {
-//     data,
-//     total,
-//     limit,
-//     totalPages:
-//       Math.ceil(total / limit),
-//   };
-// };
 
 export const agentTransactionsHist = async ({
   agentId,
@@ -994,7 +535,6 @@ export const agentMasterlist = async ({
   limit = 10,
   search,
   status,
-  branchCode,
 }: GetMasterlistParams) => {
   const skip = (page - 1) * limit;
 
@@ -1019,16 +559,6 @@ export const agentMasterlist = async ({
       },
     }),
 
-    ...(branchCode && {
-          branches: {
-        some: {
-          isActive: true,
-          branch: {
-            branchCode,
-          },
-        },
-      }
-    }),
   };
 
   const [data, total] = await Promise.all([
@@ -1038,14 +568,7 @@ export const agentMasterlist = async ({
       take: limit,
       orderBy: {
         createdAt: "desc",
-      },
-      include: {
-        branches: {
-          include: {
-            branch: true,
-          },
-        },
-      },
+      }
     }),
 
     prisma.agent.count({
@@ -1096,13 +619,7 @@ export const getAllPendingReg = async ({
           createdAt: "desc",
         },
 
-        include: {
-          branches: {
-            include: {
-              branch: true,
-            },
-          },
-        },
+   
       }),
 
       prisma.agent.count({
@@ -1126,6 +643,39 @@ export const updateAgentRegistration = async (
   agentId: string,
   status: "ACTIVE" | "REJECTED"
 ) => {
+
+
+  
+  const now = new Date();
+
+  const currentMonth =
+    now.getMonth() + 1;
+
+  const currentYear =
+    now.getFullYear();
+
+  const currentDay =
+    now.getDate();
+
+  const isGracePeriod =
+    currentDay > 12;
+
+  const cycleStartDate =
+    new Date(
+      currentYear,
+      currentMonth - 1,
+      1
+    );
+
+  const cycleEndDate =
+    new Date(
+      currentYear,
+      currentMonth,
+      0,
+      23,
+      59,
+      59
+    );
   return prisma.$transaction(
     async (tx) => {
 
@@ -1140,7 +690,10 @@ export const updateAgentRegistration = async (
         });
 
 
-      if (status === "ACTIVE") {
+      if (
+        status === "ACTIVE" &&
+        ["L1", "L2"].includes(agent.level)
+      ) {
 
         const existingUser =
           await tx.user.findUnique({
@@ -1248,8 +801,65 @@ export const updateAgentRegistration = async (
                 `Your account has been approved. Username: ${agent.username}`,
             },
           });
+          
         }
+      }else{
+         await tx.agentNotification.create({
+            data: {
+              agentId: agent.id,
+
+              type:
+                NotificationType.AGENT_REGISTRATION,
+
+              title:
+                "AGENT REGISTERED",
+
+              message:
+                `You're now registered as an Agent.`,
+            },
+          });
       }
+
+    await tx.agentMaintenanceCycle.create({
+        data: {
+          agentId:
+            agent.id,
+
+          cycleMonth:
+            currentMonth,
+
+          cycleYear:
+            currentYear,
+
+          cycleStartDate,
+
+          cycleEndDate,
+
+          requiredSales:
+            isGracePeriod
+              ? 0
+              : 1,
+
+          completedSales: 0,
+
+          remainingSales:
+            isGracePeriod
+              ? 0
+              : 1,
+
+          isCompleted:
+            isGracePeriod,
+
+          isFirstCycle:
+            true,
+
+          status:
+            isGracePeriod
+              ? "GRACE"
+              : "ACTIVE",
+        },
+      });
+
 
       return agent;
     }
@@ -1310,9 +920,7 @@ export const droppedOrSuspendedAgentService = async (
 export const getAgentDetails = async (
   agentId: string
 ) => {
-
-  const currentDate =
-    new Date();
+  const currentDate = new Date();
 
   const currentMonth =
     currentDate.getMonth() + 1;
@@ -1322,13 +930,11 @@ export const getAgentDetails = async (
 
   const agent =
     await prisma.agent.findUnique({
-
       where: {
         id: agentId,
       },
 
       include: {
-
         /* =========================================
            PARENT
         ========================================= */
@@ -1342,7 +948,14 @@ export const getAgentDetails = async (
         },
 
         /* =========================================
-           DOWNLINES
+           DIRECT DOWNLINES
+
+           L1 -> direct L2 agents
+           L2 -> direct L3 agents
+
+           Also retrieve each direct downline's
+           downlines so an L1 can receive its L3
+           descendants.
         ========================================= */
         downlines: {
           select: {
@@ -1350,23 +963,23 @@ export const getAgentDetails = async (
             fullName: true,
             level: true,
             status: true,
+
+            downlines: {
+              select: {
+                id: true,
+                fullName: true,
+                level: true,
+                status: true,
+              },
+
+              orderBy: {
+                fullName: "asc",
+              },
+            },
           },
+
           orderBy: {
             fullName: "asc",
-          },
-        },
-
-        /* =========================================
-           BRANCHES
-        ========================================= */
-        branches: {
-
-          where: {
-            isActive: true,
-          },
-
-          include: {
-            branch: true,
           },
         },
 
@@ -1374,9 +987,7 @@ export const getAgentDetails = async (
            COMMISSIONS
         ========================================= */
         commissionsEarned: {
-
           include: {
-
             sourceAgent: {
               select: {
                 fullName: true,
@@ -1396,13 +1007,9 @@ export const getAgentDetails = async (
            CURRENT MAINTENANCE
         ========================================= */
         maintenanceCycles: {
-
           where: {
-            cycleMonth:
-              currentMonth,
-
-            cycleYear:
-              currentYear,
+            cycleMonth: currentMonth,
+            cycleYear: currentYear,
           },
 
           orderBy: {
@@ -1416,7 +1023,6 @@ export const getAgentDetails = async (
            NOTIFICATIONS
         ========================================= */
         notifications: {
-
           orderBy: {
             createdAt: "desc",
           },
@@ -1427,15 +1033,78 @@ export const getAgentDetails = async (
     });
 
   if (!agent) {
-
-    throw new Error(
-      "Agent not found"
-    );
+    throw new Error("Agent not found");
   }
 
-  return agent;
-};
+  /*
+   * Remove the nested `downlines` property from
+   * every direct downline.
+   */
+  const directDownlines =
+    agent.downlines.map(
+      ({
+        downlines: nestedDownlines,
+        ...downline
+      }) => downline
+    );
 
+  /*
+   * Only an L1 agent needs the indirect L3 agents.
+   *
+   * L1
+   * ├── L2
+   * │   ├── L3
+   * │   └── L3
+   * └── L2
+   *     └── L3
+   */
+  const indirectL3Downlines =
+    agent.level === "L1"
+      ? agent.downlines.flatMap(
+          (level2Agent) =>
+            level2Agent.downlines
+        )
+      : [];
+
+  /*
+   * L1 gets L2 + L3.
+   * L2 gets only its direct L3 agents.
+   * L3 normally gets no downlines.
+   */
+  const combinedDownlines =
+    agent.level === "L1"
+      ? [
+          ...directDownlines,
+          ...indirectL3Downlines,
+        ]
+      : directDownlines;
+
+  /*
+   * Optional protection against duplicate agents.
+   */
+  const uniqueDownlines = Array.from(
+    new Map(
+      combinedDownlines.map((downline) => [
+        downline.id,
+        downline,
+      ])
+    ).values()
+  ).sort((first, second) =>
+    first.fullName.localeCompare(
+      second.fullName
+    )
+  );
+
+  return {
+    ...agent,
+
+    /*
+     * Override Prisma's nested result with the
+     * flattened response expected by the frontend.
+     */
+    downlines: uniqueDownlines,
+  };
+};
 
 export const readAllNotif = async (
   agentId: string
@@ -1536,6 +1205,69 @@ export const updateAgentAccountService =
   };
 
 
+export const updateAdminAccountService =
+  async (
+    userId: number,
+    payload: UpdateAdminAccSchema
+  ) => {
+    const user =
+      await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (!user) {
+      throw new Error(
+        "USER_NOT_FOUND"
+      );
+    }
+
+    const updateUserData: {
+      email?: string;
+      password?: string;
+    } = {};
+
+    if (payload.email?.trim()) {
+      updateUserData.email =
+        payload.email.trim();
+    }
+
+    if (
+      payload.password?.trim()
+    ) {
+      updateUserData.password =
+        await bcrypt.hash(
+          payload.password,
+          10
+        );
+    }
+
+    if (
+      Object.keys(updateUserData).length === 0
+    ) {
+      throw new Error(
+        "NO_FIELDS_TO_UPDATE"
+      );
+    }
+
+    return prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: updateUserData,
+      select: {
+        id: true,
+        email: true,
+        username: true,
+      },
+    });
+  };
+
+
 export const getAgentRemainingSales = async (
   agentId: string
 ): Promise<GetRemainingSalesResponse> => {
@@ -1619,3 +1351,306 @@ export const getAgentRemainingSales = async (
   };
 };
 
+
+
+
+
+// Edit Agent 
+
+export async function getAgentEditDetailsService(
+  agentId: string
+): Promise<AgentEditDetails> {
+  const agent =
+    await prisma.agent.findUnique({
+      where: {
+        id:
+          agentId,
+      },
+
+      select: {
+        id:
+          true,
+
+        fullName:
+          true,
+
+        agentCode:
+          true,
+
+        level:
+          true,
+
+        status:
+          true,
+
+        gender:
+          true,
+
+        birthDate:
+          true,
+
+        address:
+          true,
+
+        email:
+          true,
+
+        telephone:
+          true,
+
+        SecondaryTel:
+          true,
+
+        user: {
+          select: {
+            username:
+              true,
+          },
+        },
+      },
+    });
+
+  if (!agent) {
+    throw new Error(
+      "Agent not found."
+    );
+  }
+
+  return {
+    id:
+      agent.id,
+
+    fullName:
+      agent.fullName,
+
+    agentCode:
+      agent.agentCode,
+
+    username:
+      agent.user?.username ??
+      null,
+
+    level:
+      agent.level,
+
+    status:
+      agent.status,
+
+    gender:
+      parseAgentGender(
+        agent.gender
+      ),
+
+    birthDate:
+      formatDateForResponse(
+        agent.birthDate
+      ),
+
+    address:
+      agent.address,
+
+    email:
+      agent.email,
+
+    telephone:
+      agent.telephone,
+
+    secondaryTel:
+      agent.SecondaryTel,
+  };
+}
+
+export async function updateAgentDetailsService(
+  agentId: string,
+  payload: UpdateAgentDetailsPayload
+): Promise<AgentEditDetails> {
+  const fullName =
+    payload.fullName.trim();
+
+  const username =
+    normalizeNullableString(
+      payload.username
+    );
+
+  const email =
+    normalizeNullableString(
+      payload.email
+    );
+
+  const telephone =
+    normalizeNullableString(
+      payload.telephone
+    );
+
+  const secondaryTel =
+    normalizeNullableString(
+      payload.secondaryTel
+    );
+
+  const address =
+    normalizeNullableString(
+      payload.address
+    );
+
+  if (!fullName) {
+    throw new Error(
+      "Agent full name is required."
+    );
+  }
+
+  if (
+    !Object.values(
+      AgentLevel
+    ).includes(
+      payload.level as AgentLevel
+    )
+  ) {
+    throw new Error(
+      "Invalid agent level."
+    );
+  }
+
+  if (
+    !Object.values(
+      AgentStatus
+    ).includes(
+      payload.status as AgentStatus
+    )
+  ) {
+    throw new Error(
+      "Invalid agent status."
+    );
+  }
+
+  const gender =
+  parseAgentGender(
+    payload.gender
+  );
+
+  const existingAgent =
+    await prisma.agent.findUnique({
+      where: {
+        id:
+          agentId,
+      },
+
+      select: {
+        id:
+          true,
+      },
+    });
+
+  if (!existingAgent) {
+    throw new Error(
+      "Agent not found."
+    );
+  }
+
+  if (
+    username &&
+    existingAgent.id
+  ) {
+    const existingUsername =
+      await prisma.user.findFirst({
+        where: {
+          username,
+
+          NOT: {
+            agentId:
+              existingAgent.id,
+          },
+        },
+
+        select: {
+          id:
+            true,
+        },
+      });
+
+    if (existingUsername) {
+      throw new Error(
+        "Username is already in use."
+      );
+    }
+  }
+
+  if (email) {
+    const existingEmail =
+      await prisma.agent.findFirst({
+        where: {
+          email,
+
+          NOT: {
+            id:
+              agentId,
+          },
+        },
+
+        select: {
+          id:
+            true,
+        },
+      });
+
+    if (existingEmail) {
+      throw new Error(
+        "Email is already assigned to another agent."
+      );
+    }
+  }
+
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.agent.update({
+        where: {
+          id:
+            agentId,
+        },
+
+        data: {
+          fullName,
+
+          level:
+            payload.level as AgentLevel,
+
+          status:
+            payload.status as AgentStatus,
+
+          gender,
+
+          birthDate:
+            parseNullableDate(
+              payload.birthDate
+            ),
+
+          address,
+          email,
+          telephone,
+
+          SecondaryTel:
+            secondaryTel,
+        },
+      });
+
+      if (
+        existingAgent.id &&
+        username
+      ) {
+        await tx.user.update({
+          where: {
+            agentId:
+              existingAgent.id,
+          },
+
+          data: {
+            username,
+          },
+        });
+      }
+    }
+  );
+
+  return getAgentEditDetailsService(
+    agentId
+  );
+}

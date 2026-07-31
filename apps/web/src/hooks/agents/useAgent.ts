@@ -4,6 +4,7 @@ import {
   checkUniqueInfoService,
   DroppedorSuspendedAgentStatusService,
   getAgentDetailsService,
+  getAgentEditDetails,
   getAgentTransactionsHistService,
   getAgentTransactionsService,
   getMasterlistService,
@@ -11,9 +12,12 @@ import {
   getRemainingSalesService,
   readAllNotifService,
   registerAgentService,
+  searchAgentsReactivateService,
   searchAgentsService,
   searchBranchesService,
+  updateAdminAccountService,
   updateAgentAccountService,
+  updateAgentDetails,
   updatePendingAgentStatusService,
 } from "@/services/agents/agent.service";
 
@@ -28,7 +32,9 @@ import {
   SearchAgentsParams,
   SearchBranchParams,
   TransactionHistParams,
+  UpdateAdminAccSchema,
   UpdateAgentAccSchema,
+  UpdateAgentDetailsPayload,
 } from "@repo/shared";
 
 export const useSearchAgents = (
@@ -43,6 +49,25 @@ export const useSearchAgents = (
 
     queryFn: () =>
       searchAgentsService(
+        params
+      ),
+
+    enabled:
+      !!params.search,
+  });
+};
+export const useSearchAgentsReactivate = (
+  params: SearchAgentsParams
+) => {
+
+  return useQuery({
+    queryKey: [
+      "agents-search-reactivate",
+      params,
+    ],
+
+    queryFn: () =>
+      searchAgentsReactivateService(
         params
       ),
 
@@ -322,6 +347,34 @@ export const useUpdateAgentAccount =
     });
   };
 
+export const useUpdateAdminAccount =
+  () => {
+
+    const queryClient =
+      useQueryClient();
+
+    return useMutation({
+
+      mutationFn: (
+        payload:
+        UpdateAdminAccSchema
+      ) =>
+        updateAdminAccountService(
+          payload
+        ),
+
+      onSuccess: () => {
+
+        queryClient.invalidateQueries({
+          queryKey: [
+            "agent-details"
+          ],
+        });
+
+      },
+    });
+  };
+
 
 export const useRemainingSales = (
   params: GetRemainingSalesParams
@@ -343,4 +396,77 @@ export const useRemainingSales = (
       !!params.agentId,
   });
 };
+
+
+
+// Edit Agent 
+
+export function useAgentEditDetails(
+  agentId: string | null
+) {
+  return useQuery({
+    queryKey: [
+      "agent-edit-details",
+      agentId,
+    ],
+
+    queryFn: () => {
+      if (!agentId) {
+        throw new Error(
+          "Agent ID is required."
+        );
+      }
+
+      return getAgentEditDetails(
+        agentId
+      );
+    },
+
+    enabled:
+      Boolean(agentId),
+  });
+}
+
+export function useUpdateAgentDetails() {
+  const queryClient =
+    useQueryClient();
+
+  return useMutation({
+    mutationFn: (
+      params: {
+        agentId: string;
+        payload: UpdateAgentDetailsPayload;
+      }
+    ) =>
+      updateAgentDetails(
+        params
+      ),
+
+    onSuccess: (
+      response,
+      variables
+    ) => {
+      queryClient.setQueryData(
+        [
+          "agent-edit-details",
+          variables.agentId,
+        ],
+        response.data
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: [
+          "masterlist",
+        ],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [
+          "agent-profile",
+          variables.agentId,
+        ],
+      });
+    },
+  });
+}
 

@@ -1,14 +1,18 @@
 // hooks/commission/useCommissionSettings.ts
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createOverrideRule,
+  deleteOverrideRule,
   getAllUserService,
   getBranches,
   getCommissionSettings,
-  getRoles
+  getRoles,
+  searchEligibleAgents,
+  UpdateOverrideRules
 } from "../../services/general/general.service";
-import { CommissionSettingsResponse, GetUsersParams } from "@repo/shared";
+import { CommissionSettingsResponse, EligibleAgentOption, GetUsersParams, OverrideRulePayload } from "@repo/shared";
 
 
 export const useCommissionSettings =
@@ -52,3 +56,98 @@ export const useBranches = () => {
     refetchOnWindowFocus: false,
   });
 };
+
+
+export const useSearchEligibleAgents =
+  (
+    search: string
+  ) => {
+    const normalizedSearch =
+      search.trim();
+
+    return useQuery<
+      EligibleAgentOption[]
+    >({
+      queryKey: [
+        "eligible-agents",
+        normalizedSearch,
+      ],
+
+      queryFn: () =>
+        searchEligibleAgents(
+          normalizedSearch
+        ),
+
+      enabled:
+        normalizedSearch.length >= 2,
+
+      staleTime:
+        1000 * 30,
+
+      refetchOnWindowFocus:
+        false,
+    });
+  };
+
+
+  export function useCreateOverrideRule() {
+  const queryClient =
+    useQueryClient();
+
+  return useMutation({
+    mutationFn: (
+      payload: OverrideRulePayload
+    ) =>
+      createOverrideRule(payload),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "commission-settings",
+        ],
+      });
+    },
+  });
+}
+
+export function useUpdateOverrideRule() {
+  const queryClient =
+    useQueryClient();
+
+  return useMutation({
+    mutationFn: (
+      payload: OverrideRulePayload & {
+        id: string;
+      }
+    ) =>
+      UpdateOverrideRules(payload),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "commission-settings",
+        ],
+      });
+    },
+  });
+}
+
+export function useDeleteOverrideRule() {
+  const queryClient =
+    useQueryClient();
+
+  return useMutation({
+    mutationFn: (
+      id: string
+    ) =>
+      deleteOverrideRule(id),
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [
+          "commission-settings",
+        ],
+      });
+    },
+  });
+}

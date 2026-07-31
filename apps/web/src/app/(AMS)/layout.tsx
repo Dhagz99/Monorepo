@@ -7,13 +7,13 @@ import Image from "next/image";
 
 import Sidebar from "@/components/sidebarComp/sidebar";
 import { useAuth } from "@/components/context/UserContext";
-import { BellDot, Coins,Settings, User2, User2Icon } from "lucide-react";
+import { Coins,Settings, User2, User2Icon } from "lucide-react";
 import SweetAlert from "@/components/modal/Swal";
 import { getErrorMessage } from "@/components/helper/errorHelper";
 import {useDebounce} from "use-debounce";
 import MainModal from "@/components/modal/mainModal";
-import { useForm } from "react-hook-form";
-import { createUserSchema, RegisterSchema } from "@repo/shared";
+import { useForm, useWatch } from "react-hook-form";
+import { AgentSearchResult, createUserSchema, RegisterSchema, updateAdminAccSchema, UpdateAdminAccSchema } from "@repo/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCreateUser } from "@/hooks/user/useCreateUser";
 import { toast } from "sonner";
@@ -29,6 +29,8 @@ import PermissionGuard from "@/components/guard/PermissionGuard";
 import Can from "@/components/guard/PermissionHide";
 import PermissionsTab from "@/components/guard/PermissionsTab";
 import BranchSelect from "@/components/ui/BranchSelect";
+import { useSubmitReactivationRequest } from "@/hooks/reactivation/useReactivation";
+import { useSearchAgentsReactivate, useUpdateAdminAccount } from "@/hooks/agents/useAgent";
 
 
 
@@ -49,6 +51,19 @@ export default function AMSLayout({
 
   const searchParams = useSearchParams();
 
+  
+  const { user, loading, logout, refreshUser } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [
+    loading,
+    user,
+    router,
+  ]);
+
   const search =
     searchParams.get("search") || "";
 
@@ -66,7 +81,6 @@ export default function AMSLayout({
     useCreateUser()
 
 
-  const { user, loading, logout } = useAuth();
 
   const [openSidebar, setOpenSidebar] = useState(true);
 
@@ -74,12 +88,24 @@ export default function AMSLayout({
 
   const [settings, setSettings] = useState(false);
 
+  const [agentUpdate, setAgentUpdate] = useState(false);
+
   const [openProfile, setOpenProfile] = useState(false);
 
   const [openPermission, setOpenPermission] = useState(false);
 
   const [openAdminReactivation, setOpenAdminReactivation] = useState(false);
 
+  const [formalRequestFile, setFormalRequestFile] = useState<File | null>(null);
+
+  const [searchAgent,setSearchAgent] = useState("");
+
+  const [selectedAgent, setSelectedAgent] = useState<AgentSearchResult | null>(null);
+  
+  const [
+    showDropdown,
+    setShowDropdown,
+    ] = useState(false);
   
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(
@@ -93,6 +119,11 @@ export default function AMSLayout({
   const [userTab, setUserTab] = useState<"active"|"inactive">("active");
 
   const {
+    mutateAsync: submitAdminRequest,
+      isPending: isSubmittingAdminRequest,
+    } = useSubmitReactivationRequest();
+
+  const {
     data,
   } = useCommissionSettings();
 
@@ -103,6 +134,13 @@ export default function AMSLayout({
     search,
     status: userTab,
   });
+
+  const {
+      data: agents = [],
+      } = useSearchAgentsReactivate({
+      search: searchAgent
+      });
+  
 
   const { data: roles = [], isLoading: isRolesLoading } = useRoles();
 
@@ -189,30 +227,148 @@ export default function AMSLayout({
     searchParams,
   ]);
 
+  // Edit Profile
+   const {
+    mutateAsync:
+    updateAdminAccount
+  } =
+    useUpdateAdminAccount();
 
 
+  const editform =
+        useForm<UpdateAdminAccSchema>({
+          resolver:
+            zodResolver(updateAdminAccSchema),
+    
+          defaultValues: {
+            email: "",
+            password: ""
+          }
+        })
 
-  // =========================
-  // LOADING SCREEN
-  // =========================
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        Loading...
-      </div>
-    );
+  const onSubmitEdit = async (
+    data: UpdateAdminAccSchema
+  ) => {
+
+    try {
+
+      await updateAdminAccount(
+        data
+      );
+
+      await refreshUser();
+
+      editform.reset({
+        email:
+          data.email ?? "",
+
+        password: "",
+
+        confirmPassword: "",
+      });
+
+      SweetAlert.successAlert(
+        "Success",
+        "Account updated successfully."
+      );
+
+      handleCloseAgentUpdate();
+
+    } catch{
+
+      SweetAlert.errorAlert(
+        "Error",
+        "Failed to update account."
+      );
+    }
+  };
+  
+  useEffect(() => {
+    if (agentUpdate && user) {
+      editform.reset({
+        email: user.email ?? "",
+        password: "",
+        confirmPassword: "",
+      });
+    }
+  }, [agentUpdate, user, editform]);
+
+
+  const {
+    formState: {
+      isDirty,
+      isSubmitting
+    }
+  } = editform;
+
+
+    const password = useWatch({
+      control: form.control,
+      name: "password",
+    });
+    
+
+
+  const handleCloseAdminReactivation = async () => {
+      setFormalRequestFile(null);
+      setOpenAdminReactivation(false);
   }
 
-  // =========================
-  // BLOCK RENDER
-  // =========================
-  if (!user) return null;
+  const handleAdminReactivationSubmit = async () => {
+    if (!selectedAgent?.agentCode) {
+      await SweetAlert.errorAlert(
+        "Agent Required",
+        "Please select the expired agent requesting reactivation."
+      );
 
+      return;
+    }
 
+    if (!formalRequestFile) {
+      await SweetAlert.errorAlert(
+        "File Required",
+        "Please upload the formal written reactivation request."
+      );
 
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append(
+      "agentCode",
+      selectedAgent.agentCode
+    );
+
+    formData.append(
+      "formalRequestFile",
+      formalRequestFile
+    );
+
+    try {
+      await submitAdminRequest(formData);
+
+      await SweetAlert.successAlert(
+        "Request Submitted",
+        `${selectedAgent.fullName}'s reactivation request was submitted successfully.`
+      );
+
+      setFormalRequestFile(null);
+      setSelectedAgent(null);
+      setSearchAgent("");
+      setShowDropdown(false);
+      setOpenAdminReactivation(false);
+    } catch (error) {
+      await SweetAlert.errorAlert(
+        "Submission Failed",
+        getErrorMessage(error)
+      );
+    }
+  };
   const handleOpenPermission = () => {
     setOpenPermission(true);
   }
+
 
 
   const handleClosePermission = () => {
@@ -254,7 +410,66 @@ export default function AMSLayout({
   // =========================
 
 
+  const handleCloseAgentUpdate = () => {
 
+    if (!editform.formState.isDirty) {
+      setAgentUpdate(false);
+      return;
+    }
+
+    SweetAlert.confirmationAlert(
+      "Discard Changes?",
+      "Any unsaved changes will be lost.",
+      () => {
+
+        editform.reset({
+          email: user?.email ?? "",
+
+          password: "",
+          confirmPassword: "",
+        });
+
+        setAgentUpdate(false);
+      }
+    );
+  };
+
+
+   if (loading) {
+    return (
+      <div
+        className="
+          min-h-screen
+          flex
+          items-center
+          justify-center
+          bg-white
+        "
+      >
+        <div className="flex items-center gap-3 text-mainPrimary">
+          <div
+            className="
+              h-5
+              w-5
+              animate-spin
+              rounded-full
+              border-2
+              border-mainPrimary
+              border-t-transparent
+            "
+          />
+
+          <span>
+            Checking account...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
 
   return (
@@ -456,7 +671,7 @@ export default function AMSLayout({
                       {user.username}
                     </p>
                   </div>
-                  <div
+                  {/* <div
                     className="
                               bg-neutralLight
                               p-custom-16
@@ -475,7 +690,7 @@ export default function AMSLayout({
                     <p className="font-bold text-sm">
                       09123456273
                     </p>
-                  </div>
+                  </div> */}
                   <div
                     className="
                               bg-neutralLight
@@ -496,18 +711,50 @@ export default function AMSLayout({
                     </p>
                   </div>
                   <div className="flex w-full justify-start items-center gap-custom-8 text-white">
-                    <button className="w-full text-sm bg-secondary font-bold
+                  
+                     <Can permission="USER_MANAGE">
+                       <button onClick={() => {
+                          setRegister(true)
+                                            }} className="w-full text-sm bg-positive font-bold text-white
+                                    py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
+                          Register Account
+                        </button>
+                     </Can>
+                      
+                        <Can permission="BRANCH_VIEW">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenAdminReactivation(true)
+                            }
+                            className="
+                              w-full
+                              text-white
+                              bg-mainPrimary
+                              px-custom-16 py-custom-8
+                              text-sm
+                              rounded-lg
+                              font-bold
+                              cursor-pointer
+                              hover:bg-lightPrimary
+                              ease-in-out
+                              duration-150
+                            "
+                          >
+                            Reactivate Agent
+                          </button>
+                        </Can>
+      
+                  </div>
+                            
+                    <button onClick={()=>{
+                        setAgentUpdate(true);
+                      }}
+                    className="w-full text-sm text-white bg-secondary font-bold
                                py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
                       Edit Profile
                     </button>
-                     <button onClick={() => {
-                      setRegister(true)
-                    }} className="w-full text-sm bg-positive font-bold text-white
-                                py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
-                      Register Account
-                    </button>
-      
-                  </div>
+                  
                   <Can permission="ADMIN_MANAGE">
                       <button onClick={handleOpenPermission} className="w-full font-bold text-white text-sm bg-lightPrimary py-custom-8 px-custom-16 rounded-lg cursor-pointer hover:scale-105 ease-in-out duration-150">
                         Permission Management
@@ -999,6 +1246,325 @@ export default function AMSLayout({
             </MainModal>
             )}
 
+                  {openAdminReactivation && (
+                      <MainModal
+                        size="md"
+                        onClose={() => {
+                          handleCloseAdminReactivation()
+                        }}
+                      >
+                        <div className="flex flex-col gap-custom-16">
+                          <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+                            <Image
+                              src="/images/AMSLOGO.svg"
+                              alt="JameroGroupOfCompanies"
+                              width={160}
+                              height={160}
+                              priority
+                            />
+                          </div>
+                          <div className="px-custom-32 flex flex-col gap-y-custom-8">
+                            <h1 className="text-mdHeader font-bold text-mainPrimary">
+                              Admin Reactivation Request
+                            </h1>
+                            <p>
+                              Upload your formal written reactivation request.
+                              Accepted files: PDF, JPG, JPEG, or PNG.
+                            </p>
+                          </div>
+
+                          {/* SEARCH */}
+                          <div className="relative flex flex-col gap-2 px-custom-32">
+
+                              <label className="font-bold text-xs">
+                              Search Agent Name 
+                              </label>
+
+                              <input
+                              type="search"
+                              value={searchAgent}
+                              onChange={(e) => {
+
+                                  setSearchAgent(
+                                  e.target.value
+                                  );
+
+                                  setShowDropdown(true);
+                              }}
+                              className="
+                                  border
+                                  border-neutralPrimary
+                                  rounded-lg
+                                  px-4 py-3
+                                  w-full
+                              "
+                              />
+
+                              {/* DROPDOWN */}
+                              {showDropdown &&
+                              agents.length > 0 &&
+                              searchAgent && (
+
+                              <div
+                                  className="
+                                  absolute
+                                  top-full
+                                  left-8
+                                  w-[90%]
+                                  bg-white
+                                  border
+                                  border-neutralMed
+                                  rounded-lg
+                                  shadow-md
+                                  z-50
+                                  mt-1
+                                  max-h-60
+                                  overflow-y-auto
+
+                                  "
+                              >
+
+                                  {agents.map((agent) => (
+
+                                  <button
+                                      key={agent.id}
+                                      type="button"
+                                      onClick={() => {
+
+                                      setSelectedAgent(
+                                      agent
+                                      );
+
+                                      setSearchAgent(
+                                      agent.agentCode
+                                      );
+
+                                      setShowDropdown(false);
+                                      }}
+                                      className="
+                                      w-full
+                                      text-left
+                                      px-4
+                                      py-3
+                                      hover:bg-neutralLight
+                                      "
+                                  >
+
+                                      <div className="flex flex-col">
+
+                                      <span className="font-semibold">
+                                          {agent.fullName} 
+                                      </span>
+
+                                      <span className="text-xs text-neutralPrimary">
+                                           {agent.agentCode} • {agent.level}
+                                      </span>
+
+                                      </div>
+
+                                  </button>
+
+                                  ))}
+
+                              </div>
+                              )}
+
+                          </div>
+
+                          <div className="px-custom-32 pb-custom-32 flex flex-col gap-custom-16">
+                            <div className="flex flex-col gap-y-custom-8">
+                              <label className="font-bold text-xs">
+                                Formal Written Reactivation Request
+                              </label>
+                              <input
+                                type="file"
+                                accept="application/pdf,image/png,image/jpeg,image/jpg"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setFormalRequestFile(file);
+                                }}
+                                className="
+                                  bg-neutralLight
+                                  border
+                                  border-neutralMed
+                                  py-3
+                                  px-custom-16
+                                  rounded-lg
+                                "
+                              />
+                            </div>
+                            {formalRequestFile && 
+                            selectedAgent &&
+                            (
+                              <div className="bg-neutralLight p-custom-16 rounded-xl">
+                                <p className="text-xs text-neutralPrimary">
+                                  Selected File
+                                </p>
+                                <h2 className="font-bold text-mainPrimary break-all">
+                                  {formalRequestFile.name}
+                                </h2>
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              disabled={
+                                !selectedAgent       ||
+                                !formalRequestFile ||
+                                isSubmittingAdminRequest
+                              }
+                              onClick={handleAdminReactivationSubmit}
+                              className="
+                                w-full
+                                text-white
+                                bg-mainPrimary
+                                p-3
+                                rounded-lg
+                                font-bold
+                                disabled:opacity-50
+                                disabled:cursor-not-allowed
+                                cursor-pointer
+                                hover:bg-lightPrimary
+                                ease-in-out
+                                duration-150
+                              "
+                            >
+                              {isSubmittingAdminRequest
+                                ? "Submitting..."
+                                : "Submit Request for Admin Approval"}
+                            </button>
+                          </div>
+                        </div>
+                      </MainModal>
+                    )}
+
+                    
+                     {agentUpdate && (
+                          <MainModal size="md"   onClose={handleCloseAgentUpdate}>
+                    
+                              <div
+                                className="
+                                  flex
+                                  flex-col
+                                  gap-custom-16
+                                "
+                              >
+                              <div className="w-full flex items-start justify-start bg-mainPrimary py-custom-16 px-custom-32 rounded-t-xl">
+                                 <Image
+                                   src="/images/AMSLOGO.svg"
+                                   alt="JameroGroupOfCompanies"
+                                   width={160}
+                                   height={160}
+                                   priority
+                                 />
+                              </div>
+                    
+                              <div className="px-custom-32 flex flex-col gap-y-custom-8">
+                                    <h1 className="text-mdHeader font-bold text-mainPrimary">Update Your Profile</h1>
+                                    <p>Configure account information and password to enable secure access.</p>
+                              </div>
+                    
+                              <form
+                                  onSubmit={editform.handleSubmit(
+                                    onSubmitEdit
+                                  )}
+                                  className="flex flex-col gap-y-custom-16 w-full px-custom-32 pb-custom-32"
+                                >
+                                <div className="flex flex-col gap-y-custom-8">
+                                  <label htmlFor="name" className="font-bold text-xs">Email Address</label>
+                                  <input
+                                  className="bg-neutralLight border border-neutralMed py-3 px-custom-16 rounded-lg"
+                                    placeholder="Email"
+                                    {...editform.register("email")}
+                                  />
+                                </div>
+                             
+                                <div className="relative flex flex-col gap-y-custom-8">
+                                  <label
+                                    htmlFor="password"
+                                    className="font-bold text-xs"
+                                  >
+                                    New Password
+                                  </label>
+                                  <input
+                                    className="
+                                      bg-neutralLight
+                                      border
+                                      border-neutralMed
+                                      py-3
+                                      px-custom-16
+                                      rounded-lg
+                                    "
+                                    type="password"
+                                    placeholder="Password"
+                                    {...editform.register("password")}
+                                  />
+                                  {editform.formState.errors.password && (
+                                    <p className="absolute -bottom-4 text-negative text-xs">
+                                      {editform.formState.errors.password.message}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="relative flex flex-col gap-y-custom-8">
+                                  <label
+                                    htmlFor="confirmPassword"
+                                    className="font-bold text-xs"
+                                  >
+                                    Confirm Password
+                                  </label>
+                                  <input
+                                    className="
+                                      bg-neutralLight
+                                      border
+                                      border-neutralMed
+                                      py-3
+                                      px-custom-16
+                                      rounded-lg
+                                      disabled:opacity-50
+                                    "
+                                    type="password"
+                                    placeholder="Confirm Password"
+                                    disabled={!password}
+                                    {...editform.register("confirmPassword")}
+                                  />
+                                  {editform.formState.errors.confirmPassword && (
+                                    <p className="absolute -bottom-4 text-negative text-xs">
+                                      {
+                                        editform.formState.errors
+                                          .confirmPassword?.message
+                                      }
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  type="submit"
+                                  disabled={!isDirty || isSubmitting}
+                                  className="
+                                    text-white
+                                    p-3
+                                    rounded-lg
+                                    text-body
+                                    font-bold
+                                    bg-mainPrimary
+                                    disabled:opacity-50
+                                    disabled:cursor-not-allowed
+                                    cursor-pointer
+                                    hover:bg-lightPrimary
+                                    ease-in-out
+                                    duration-150
+                                  "
+                                >
+                                  {isSubmitting
+                                    ? "Updating..."
+                                    : "Update Account Details"}
+                                </button>
+                              </form>
+                    
+                    
+                              </div>
+                        </MainModal>
+                      )}
+              
 
       </div>
     </PermissionGuard>

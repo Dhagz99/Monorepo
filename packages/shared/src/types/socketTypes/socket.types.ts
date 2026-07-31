@@ -28,6 +28,24 @@ export interface ReactivationApprovalSocketPayload {
   createdAt: Date;
 }
 
+export interface ReactivationApprovalSocketBranchPayload {
+  requestId: string;
+  approvalId: string;
+
+  branchCode?: string;
+
+  agentId: string;
+  agentName: string;
+
+  reviewerType: "ADMIN";
+
+  status: "APPROVED" | "REJECTED";
+
+  title: string;
+  message: string;
+  createdAt: Date;
+}
+
 export interface AdminReactivationPaymentSocketPayload {
   paymentId: string;
   requestId: string;
