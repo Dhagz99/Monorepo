@@ -1,9 +1,9 @@
 export interface LoginResponse {
-    user: {
-      id: number;
-      username: string;
-      role: string;
-    };
-  }
-  
-  
+  user: {
+    id: number;
+    username: string;
+    positionId: string;
+    role: string;
+  };
+}
+

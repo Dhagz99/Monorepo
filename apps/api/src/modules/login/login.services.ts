@@ -1,9 +1,9 @@
 
 import { CreateUserInput, LoginDTO } from "./login.types";
-import  prisma  from "../../lib/prisma";
-import bcrypt from "bcryptjs";
+import prisma from "../../lib/prisma";
 import { signToken } from "../utils/jwt";
 import { RegisterSchema } from "@repo/shared";
+import bcrypt from "bcrypt";
 
 export async function loginUser(params: LoginDTO) {
   const { username, password } = params
@@ -31,7 +31,7 @@ export async function loginUser(params: LoginDTO) {
   if (!user || !user.isActive) {
     throw new Error("INVALID_USER")
   }
- 
+
 
   const isPasswordValid = await bcrypt.compare(password, user.password)
   console.log("test: ", isPasswordValid)
@@ -106,7 +106,7 @@ export async function createUserService(data: RegisterSchema) {
         username,
         password: hashedPassword,
         isActive: true,
-    }
+      }
     })
 
     await tx.userRole.createMany({
@@ -177,20 +177,20 @@ export async function updateUserService(
 export async function getRoleService() {
   return prisma.role.findMany({
     select: {
-        id: true,
-        name: true,
-        description: true,
-        permissions: {
+      id: true,
+      name: true,
+      description: true,
+      permissions: {
+        select: {
+          roleId: true,
+          permissionId: true,
+          permission: {
             select: {
-              roleId: true,
-              permissionId: true,
-              permission: {
-                select: {
-                    code: true
-                }
-              }
+              code: true
             }
+          }
         }
+      }
     },
     orderBy: {
       name: "asc"

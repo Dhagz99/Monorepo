@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express"
-import  prisma  from "../lib/prisma"
+import prisma from "../lib/prisma"
 
 export function requirePermission(permissionCode: string) {
   return async (
@@ -21,7 +21,7 @@ export function requirePermission(permissionCode: string) {
             permissions: {
               select: {
                 permission: {
-                  select: { 
+                  select: {
                     code: true
                   }
                 }

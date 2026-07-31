@@ -1,5 +1,5 @@
 import "dotenv/config";
-import  prisma  from "../src/lib/prisma.js";
+import prisma from "../src/lib/prisma.js";
 import bcrypt from "bcryptjs";
 import { createUserService } from "../src/modules/login/login.services.js";
 
@@ -7,11 +7,11 @@ async function main() {
   const Password = "12345678";
 
   const user = await createUserService({
-      email: "financial@example.com",
-      name: "Trial User",
-      username: "admin1234",
-      password: Password,
-      roleIds: [1],
+    email: "financial@example.com",
+    name: "Trial User",
+    username: "admin1234",
+    password: Password,
+    roleIds: [1],
   });
 
 }
@@ -27,4 +27,3 @@ main()
 
 
 
-  
