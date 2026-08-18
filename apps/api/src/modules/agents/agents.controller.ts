@@ -25,11 +25,13 @@ import {
 } from "./agents.service";
 
 import {
+  registerAgentApiSchema,
   registrationAgentSchema,
   updateAccSchema,
   updateAdminAccSchema,
   UpdateAgentDetailsPayload,
 } from "@repo/shared";
+import fs from "fs";
 
 export const searchBranchController = 
     async(
@@ -179,57 +181,138 @@ export const checkUniqueInfoController =
     }
   };
 
+// export const registerAgentController =
+//   async (
+//     req: Request,
+//     res: Response
+//   ) => {
+//     try {
+//       const validatedData =
+//         registrationAgentSchema.parse(
+//           req.body
+//         );
+
+//       const result =
+//         await registerAgent(
+//           validatedData
+//         );
+
+//       return res.status(201).json({
+//         success: true,
+
+//         message:
+//           "Agent registered successfully",
+
+//         data: result,
+//       });
+//     } catch (error: unknown) {
+
+
+//       if (error instanceof AppError) {
+//         // Expected business validation.
+//         // Do not print a full error stack.
+//         console.warn(
+//           "REGISTER AGENT VALIDATION:",
+//           error.message
+//         );
+
+//         return res
+//           .status(error.statusCode)
+//           .json({
+//             success: false,
+//             message: error.message,
+//           });
+//       }
+
+//       console.error(
+//         "UNEXPECTED REGISTER AGENT ERROR:",
+//         error
+//       );
+
+//       return res.status(500).json({
+//         success: false,
+//         message:
+//           "Failed to register agent.",
+//       });
+//     }
+//   };
+
 export const registerAgentController =
   async (
     req: Request,
     res: Response
   ) => {
-
     try {
+      if (!req.file) {
+        return res.status(400).json({
+          message:
+            "Profile picture is required.",
+        });
+      }
 
       const validatedData =
-        registrationAgentSchema.parse(
-          req.body
-        );
+        registerAgentApiSchema.parse({
+          ...req.body,
+
+          dateBirth:
+            req.body.dateBirth,
+
+          parentAgentId:
+            req.body.parentAgentId ||
+            undefined,
+
+          parentAgentName:
+            req.body.parentAgentName ||
+            undefined,
+
+          uplineLevel:
+            req.body.uplineLevel ||
+            undefined,
+
+          agentSecTel:
+            req.body.agentSecTel ||
+            undefined,
+
+          email:
+            req.body.email ||
+            undefined,
+        });
+
+      const profilePhotoPath =
+        `/uploads/agent-profile/${req.file.filename}`;
 
       const result =
         await registerAgent(
-          validatedData
+          validatedData,
+          profilePhotoPath
         );
 
-      return res
-        .status(201)
-        .json({
-          message:
-            "Agent registered successfully",
-          data: result,
-        });
-
+      return res.status(201).json({
+        message:
+          "Agent registered successfully",
+        data: result,
+      });
     } catch (error: unknown) {
-
-      console.error(
-        "REGISTER AGENT ERROR:",
-        error
-      );
-
-      if (error instanceof Error) {
-
-        return res
-          .status(400)
-          .json({
-            message:
-              error.message,
-          });
+      if (req.file) {
+        fs.unlink(
+          req.file.path,
+          () => undefined
+        );
       }
 
-      return res
-        .status(500)
-        .json({
-          message:
-            "Failed to register agent",
+      if (error instanceof Error) {
+        return res.status(400).json({
+          message: error.message,
         });
+      }
+
+      return res.status(500).json({
+        message:
+          "Failed to register agent",
+      });
     }
-};
+  };
+
 
 export const getAgentTransactionsController =
   async (
@@ -791,9 +874,6 @@ export async function updateAgentDetailsController(
       level:
         req.body.level,
 
-      status:
-        req.body.status,
-
       gender:
         req.body.gender ??
         null,
@@ -816,6 +896,10 @@ export async function updateAgentDetailsController(
 
       secondaryTel:
         req.body.secondaryTel ??
+        null,
+
+      newUplineId:
+        req.body.newUplineId ??
         null,
     };
 

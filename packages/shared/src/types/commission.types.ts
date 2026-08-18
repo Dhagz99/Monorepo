@@ -18,7 +18,7 @@ export interface ScannedAgentResponse {
     status: string;
     telephone: string;
     SecondaryTel : string;
-
+    profilePicture: string;
   };
 
   client: {

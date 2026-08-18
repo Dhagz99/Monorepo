@@ -36,6 +36,7 @@ export interface AgentCommissionInfo {
   status:string;
   level: string;
   email: string | null;
+  profilePicture: string;
 }
 
 export interface CommissionRuleInfo {

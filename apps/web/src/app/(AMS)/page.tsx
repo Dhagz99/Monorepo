@@ -100,7 +100,7 @@ export default function ClientsPage() {
     "GCASH"
   );
 
-
+  
   
   const [selectedPhoneNumber, setSelectedPhoneNumber] =
   useState("");
@@ -298,6 +298,21 @@ export default function ClientsPage() {
       clientId:selectedScanClientId,
     });
 
+
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:5000";
+
+  const profilePictureUrl =
+    scannedAgent?.agent.profilePicture
+      ? `${API_BASE_URL}${scannedAgent?.agent.profilePicture.trim()}`
+      : null;
+
+
+  const detailsProfilePictureUrl =
+    directTransaction?.sourceAgent.profilePicture
+      ? `${API_BASE_URL}${directTransaction?.sourceAgent.profilePicture.trim()}`
+      : null;
 
   const handleConfirmCommission = () => {
       if (!scannedAgent || !user?.id) {
@@ -1076,8 +1091,8 @@ export default function ClientsPage() {
                             </h2>
                           </div>
                           {/* INFO */}
-                          <div className="flex gap-6">
-                            {/* QR */}
+                          <div className="flex gap-6 justify-start items-center">
+                        {/* Profile Picture  */}
                             <div
                               className="
                                 bg-white
@@ -1091,21 +1106,47 @@ export default function ClientsPage() {
                             >
               
 
-                              <QRCode
-                               value={
-                                 scannedAgent?.agent.agentCode || ""
-                               }
-                               size={80}
-                             />
+
+                            {profilePictureUrl ? (
+                              <img
+                                src={profilePictureUrl}
+                                alt={`${scannedAgent?.agent.fullName ?? "Agent"} profile`}
+                                className="
+                                  w-28
+                                  h-28
+                                  rounded-md
+                                  object-cover
+                                  border
+                                  border-neutralMed
+                                "
+                              />
+                            ) : (
+                              <div
+                                className="
+                                  w-28
+                                  h-28
+                                  rounded-full
+                                  bg-neutralMed
+                                  flex
+                                  items-center
+                                  justify-center
+                                  text-sm
+                                  text-neutralPrimary
+                                  text-center
+                                "
+                              >
+                                No profile <br></br> picture
+                              </div>
+                            )}
                            
                             </div>
                             {/* DETAILS */}
                             <div className="flex flex-col gap-3">
                               <div className="flex flex-col gap-custom-8">
-                                <p className="text-sm text-gray-300">
+                                <p className="text-tertiaryHeader text-gray-300">
                                   Agent Fullname
                                 </p>
-                                <p className="text-mdHeader font-bold">
+                                <p className="text-secondaryHeader font-bold">
                                   {
                                     scannedAgent?.agent.fullName
                                   }
@@ -1127,15 +1168,15 @@ export default function ClientsPage() {
                           </div>
 
 
-                          <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-16 pb-custom-16">
+                          <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-8 pb-custom-16">
                               <div className="flex justify-between">
                                       <h6 className="text-mdHeader">Commission</h6>
                                       <p className="text-body"></p>
                               </div>
                               <div className="flex flex-col text-xs">
-                                  <div className="flex justify-between gap-custom-8">
+                                  <div className="flex justify-between items-center gap-custom-8">
                                       <h6 className="text-sm">( {scannedAgent?.agent?.status} ) SCAN STATUS</h6>
-                                       <p className="font-bold text-xs text-yellow-300">
+                                       <p className="font-bold text-primaryHeader text-yellow-300">
                                         ₱
                                         {Number(
                                          scannedAgent?.directCommission?.amount
@@ -1703,27 +1744,54 @@ export default function ClientsPage() {
 
                               
                               <div className="flex gap-6">
-                                {/* QR */}
-                                <div
-                                  className="
-                                    bg-white
-                                    rounded-xl
-                                    p-3
-                                    w-fit
-                                    flex
-                                    items-center
-                                    justify-center
-                                  "
-                                >
-                              
-                                <QRCode
-                                  value={
-                                    directTransaction?.sourceAgent?.agentCode || ""
-                                  }
-                                  size={100}
-                                />
-                                
-                                </div>
+                                {/* Profile Picture */}
+                            <div
+                              className="
+                                bg-white
+                                rounded-xl
+                                p-custom-8
+                                w-fit
+                                flex
+                                items-center
+                                justify-center
+                              "
+                            >
+              
+
+
+                            {detailsProfilePictureUrl ? (
+                              <img
+                                src={detailsProfilePictureUrl}
+                                alt={`${directTransaction?.sourceAgent.fullName ?? "Agent"} profile`}
+                                className="
+                                  w-28
+                                  h-28
+                                  rounded-md
+                                  object-cover
+                                  border
+                                  border-neutralMed
+                                "
+                              />
+                            ) : (
+                              <div
+                                className="
+                                  w-28
+                                  h-28
+                                  rounded-full
+                                  bg-neutralMed
+                                  flex
+                                  items-center
+                                  justify-center
+                                  text-sm
+                                  text-neutralPrimary
+                                  text-center
+                                "
+                              >
+                                No profile <br></br> picture
+                              </div>
+                            )}
+                           
+                            </div>
                                 {/* DETAILS */}
                                 <div className="flex flex-col gap-3 items-start justify-center">
                                       <div>
@@ -1765,15 +1833,15 @@ export default function ClientsPage() {
 
                             </div>
 
-                            <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-16 py-custom-16">
+                            <div className="w-full border-b border-neutralLight flex flex-col gap-y-custom-8 py-custom-16">
                               <div className="flex justify-between">
                                       <h6 className="text-mdHeader">Commission</h6>
                                       <p className="text-body"></p>
                               </div>
                               <div className="flex flex-col">
-                                  <div className="flex justify-between">
+                                  <div className="flex justify-between items-center">
                                       <h6 className="text-body">( {commissionDetails?.AgentScannedStatus} ) SCAN STATUS</h6>
-                                       <p className="font-bold text-yellow-300">
+                                       <p className="font-bold text-secondaryHeader text-yellow-300">
                                         ₱
                                         {Number(
                                           directTransaction?.commissionAmount

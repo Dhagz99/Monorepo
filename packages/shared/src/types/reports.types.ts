@@ -150,3 +150,171 @@ export interface GetMaintenanceNearExpiryApiResponse {
   success: boolean;
   data: PaginatedMaintenanceNearExpiryResponse;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+export type ReportType = "AGENT" | "BRANCH";
+
+export interface AgentCommissionReportParams {
+  reportType: ReportType;
+  startPeriod?: string;
+  endPeriod?: string;
+  searchName?: string;
+  page?: number;
+  limit?: number;
+}
+export interface AgentCommissionReportResponse {
+  agentId: string;
+  fullName: string;
+  level: string;
+  transactions: number;
+  personalSales: number;
+  directComm: number;
+  overrideFromL2: number | null;
+  overrideFromL3: number | null;
+  totalComm: number;
+}
+
+export interface PaginatedAgentCommissionReportResponse {
+  reportType: "AGENT";
+  data: AgentCommissionReportResponse[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+
+export interface GetAgentCommissionReportApiResponse {
+  success: boolean;
+  data: PaginatedAgentCommissionReportResponse;
+}
+
+
+
+
+
+export interface BranchCommissionReportResponse {
+  branchCode: string;
+  companyName: string | null;
+  location: string | null;
+  transactions: number;
+  totalSales: number;
+  totalDirectCommission: number;
+  totalDownlineCommission: number;
+  totalCommission: number;
+}
+
+export interface PaginatedBranchCommissionReportResponse {
+  reportType: "BRANCH";
+  data: BranchCommissionReportResponse[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export type CommissionReportResponse =
+  | PaginatedAgentCommissionReportResponse
+  | PaginatedBranchCommissionReportResponse;
+
+export interface GetCommissionReportApiResponse {
+  success: boolean;
+  data: CommissionReportResponse;
+}
+
+
+
+
+
+export interface AgentCommissionDetailsParams {
+  agentId: string;
+  detailType: CommissionDetailType;
+  startPeriod: string;
+  endPeriod: string;
+  page?: number;
+  limit?: number;
+}
+
+export type CommissionDetailType =
+  | "DIRECT"
+  | "OVERRIDE_L2"
+  | "OVERRIDE_L3";
+
+export interface AgentCommissionDetailTransaction {
+  transactionId: string;
+  commissionScanId: string;
+  clientName: string;
+  saleReference: string | null;
+  sourceAgentName: string;
+  sourceLevel: string;
+  receiverLevel: string;
+  saleAmount: number;
+  percentage: number | null;
+  commissionAmount: number;
+  scannedAt: string;
+  term: number | null;
+}
+
+export interface AgentCommissionDetailsResponse {
+  agentId: string;
+  fullName: string;
+  detailType: CommissionDetailType;
+  transactions: AgentCommissionDetailTransaction[];
+  totalCommission: number;
+
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface GetAgentCommissionDetailsApiResponse {
+  success: boolean;
+  data: AgentCommissionDetailsResponse;
+}
+
+
+
+export interface AgentCommissionDetailsPrintParams {
+  agentId: string;
+  detailType: CommissionDetailType;
+  startPeriod: string;
+  endPeriod: string;
+}
+
+
+export interface CommissionPrintParams{
+  reportType: ReportType;
+  startPeriod?: string;
+  endPeriod?: string;
+  searchName?: string;
+}
+
+export interface AgentCommissionPrintResponse {
+  reportType: "AGENT";
+  data: AgentCommissionReportResponse[];
+}
+
+export interface BranchCommissionPrintResponse {
+  reportType: "BRANCH";
+  data: BranchCommissionReportResponse[];
+}
+
+export type CommissionPrintResponse =
+  | AgentCommissionPrintResponse
+  | BranchCommissionPrintResponse;
+
+export interface GetCommissionPrintApiResponse {
+  success: boolean;
+  data: CommissionPrintResponse;
+}

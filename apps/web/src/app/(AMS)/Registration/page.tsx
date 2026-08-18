@@ -115,6 +115,7 @@ export default function DashboardPage() {
     control,
     setValue,
     getValues,
+    reset,
   } =
   useForm<RegisterAgentSchema>({
       resolver:
@@ -127,12 +128,19 @@ export default function DashboardPage() {
         agentName: "",
         agentGender: "",
         parentAgentId: "",
+        parentAgentName: "",
         uplineLevel: "",
-        branches:[],
+        branches: [],
+
         dateBirth: undefined,
+
         agentTel: "",
+        agentSecTel: "",
+        branchCode: "",
         agentQrCode: "",
         username: "",
+        agentAdd: "",
+        selectedAgentLevel: "",
       },
     });
 
@@ -140,6 +148,51 @@ export default function DashboardPage() {
   useWatch({
     control,
   });
+
+
+  const handleRegistrationSuccess =
+  () => {
+    /*
+     * Clear every React Hook Form field.
+     */
+    reset({
+      email: "",
+      agentName: "",
+      agentGender: "",
+      parentAgentId: "",
+      parentAgentName: "",
+      uplineLevel: "",
+      branches: [],
+
+      dateBirth:
+        undefined,
+
+      agentTel: "",
+      agentSecTel: "",
+
+      branchCode: "",
+      agentQrCode: "",
+      username: "",
+      agentAdd: "",
+      selectedAgentLevel: "",
+    });
+
+    /*
+     * Return wizard navigation back
+     * to step 1.
+     */
+    setActiveStep(
+      "personal-details"
+    );
+
+    /*
+     * Prevent the user from clicking
+     * directly back to steps 2 or 3.
+     */
+    setHighestStep(
+      "personal-details"
+    );
+  };
   /* =========================================
      TABS
   ========================================= */
@@ -424,6 +477,9 @@ export default function DashboardPage() {
             }
             handleSubmit={
               handleSubmit
+            }
+            onRegistrationSuccess={
+              handleRegistrationSuccess
             }
      
           />

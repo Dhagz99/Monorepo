@@ -89,11 +89,24 @@ export const checkUniqueInfoService =
     return res.data.data;
   };
 
+// export const registerAgentService =
+//   async (
+//     payload: RegisterAgentSchema
+//   ) => {
+
+//     const res =
+//       await api.post(
+//         "/agents/registerAgent",
+//         payload
+//       );
+
+//     return res.data;
+//   };
+
 export const registerAgentService =
   async (
-    payload: RegisterAgentSchema
+    payload: FormData
   ) => {
-
     const res =
       await api.post(
         "/agents/registerAgent",

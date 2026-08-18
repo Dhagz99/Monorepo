@@ -225,6 +225,7 @@ import {
 } from "@prisma/client";
 import { emitAdminPaymentUpdated, emitAdminReactivationApproval, emitBranchReactivationApproval, emitNotification, emitUplineReactivationApproval } from "../../socket/socketEmitter";
 import { ReactivationRequestDetailsResponse, ReviewReactivationApprovalPayload } from "@repo/shared";
+import { sendSmsToGateway } from "../../services/sms/sms.services";
 
 const SELF_REACTIVATION_LIMIT_DAYS = 90;
 const ADMIN_REACTIVATION_LIMIT_DAYS = 180;
@@ -1769,6 +1770,11 @@ export const adminReactivationApprovalService = async (
               },
             });
 
+
+        const smsMessage = payload.remarks?.trim()
+          ? `Your reactivation request was rejected. Remarks: ${payload.remarks.trim()}`
+          : "Your reactivation request has been rejected.";
+
         return {
           approvalId:
             updatedApproval.id,
@@ -1785,6 +1791,12 @@ export const adminReactivationApprovalService = async (
           notifications: [
             notification,
           ],
+
+          sms: {
+            number: approval.request.agent.telephone,
+            message: smsMessage,
+          },
+
 
           branchPayload:
             approval.request.submittedBranchCode
@@ -1903,12 +1915,24 @@ export const adminReactivationApprovalService = async (
             },
           });
 
+          const smsMessage =
+          `Your reactivation request has been approved. ` +
+          `Complete ${requiredSales} sale${
+            requiredSales > 1 ? "s" : ""
+          } from ${payload.probationStartDate} to ${payload.probationEndDate}.`;
+
          return {
             approvalId: updatedApproval.id,
             requestId: approval.requestId,
             approvalStatus: updatedApproval.status,
             requestStatus: approval.request.status,
-            notifications: [],
+            notifications: [notification,],
+
+            sms: {
+              number: approval.request.agent.telephone,
+              message: smsMessage,
+            },
+
             branchSocketPayload:
             approval.request.submittedBranchCode
               ? {
@@ -1984,12 +2008,26 @@ export const adminReactivationApprovalService = async (
       }
     );
   }
+
+
+  if (result.sms?.number) {
+    try {
+      await sendSmsToGateway(
+        result.sms.number,
+        result.sms.message
+      );
+    } catch (err) {
+      console.error("Failed to send SMS:", err);
+      // Don't throw here.
+      // The approval has already been committed successfully.
+    }
+  }
   
   if (result.branchSocketPayload) {
     emitBranchReactivationApproval(
       result.branchSocketPayload.branchCode,
       result.branchSocketPayload.payload
-    );
+    ); 
   }
   
 

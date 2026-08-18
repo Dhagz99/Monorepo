@@ -7,7 +7,7 @@ import Image from "next/image";
 
 import Sidebar from "@/components/sidebarComp/sidebar";
 import { useAuth } from "@/components/context/UserContext";
-import { Coins,Settings, User2, User2Icon } from "lucide-react";
+import { Building2, Building2Icon, Coins,Factory,Settings, User2, User2Icon } from "lucide-react";
 import SweetAlert from "@/components/modal/Swal";
 import { getErrorMessage } from "@/components/helper/errorHelper";
 import {useDebounce} from "use-debounce";
@@ -19,7 +19,7 @@ import { useCreateUser } from "@/hooks/user/useCreateUser";
 import { toast } from "sonner";
 import { AxiosError } from "axios";
 import OverrideRules from "./Settings/OverrideRules";
-import { useCommissionSettings, useMasterlistUsers, useRoles } from "@/hooks/general/useGeneral";
+import { useBranchesSetting, useCommissionSettings, useCompanySetting, useMasterlistUsers, useRoles } from "@/hooks/general/useGeneral";
 import ExpiredRules from "./Settings/ExpiredRules";
 import CodedRules from "./Settings/CodedRules";
 import ActiveUsers from "./Settings/ActiveUser";
@@ -31,6 +31,8 @@ import PermissionsTab from "@/components/guard/PermissionsTab";
 import BranchSelect from "@/components/ui/BranchSelect";
 import { useSubmitReactivationRequest } from "@/hooks/reactivation/useReactivation";
 import { useSearchAgentsReactivate, useUpdateAdminAccount } from "@/hooks/agents/useAgent";
+import BranchSettings from "./Settings/Branches";
+import CompanySettings from "./Settings/Companies";
 
 
 
@@ -38,6 +40,7 @@ enum SettingsTab {
   User = "user",
   COMMISSION = "commission",
   BRANCH_SETTINGS = "branch-settings",
+  COMPANY = "companies",
   NOTIFICATIONS = "notifications",
 }
 
@@ -64,14 +67,32 @@ export default function AMSLayout({
     router,
   ]);
 
-  const search =
-    searchParams.get("search") || "";
+  const userSearch =
+  searchParams.get("userSearch") || "";
+
+  const branchSearch =
+    searchParams.get("branchSearch") || "";
+
+  const companySearch =
+    searchParams.get("companySearch") || "";
 
   const [searchText, setSearchText] =
-    useState(search);
+    useState(userSearch);
 
-  const [debouncedSearch] =
+  const [branchText, setBranchText] =
+    useState(branchSearch);
+
+  const [companyText, setCompanyText] =
+    useState(companySearch);
+
+  const [debouncedUserSearch] =
     useDebounce(searchText, 500);
+
+  const [debouncedBranchSearch] =
+    useDebounce(branchText, 500);
+
+  const [debouncedCompanySearch] =
+    useDebounce(companyText, 500);
 
   const page =
     Number(searchParams.get("page")) || 1;
@@ -101,6 +122,16 @@ export default function AMSLayout({
   const [searchAgent,setSearchAgent] = useState("");
 
   const [selectedAgent, setSelectedAgent] = useState<AgentSearchResult | null>(null);
+
+  const [
+    isAddBranchOpen,
+    setIsAddBranchOpen,
+  ] = useState(false);
+
+  const [
+    isAddCompanyOpen,
+    setIsAddCompanyOpen,
+  ] = useState(false);
   
   const [
     showDropdown,
@@ -118,6 +149,8 @@ export default function AMSLayout({
 
   const [userTab, setUserTab] = useState<"active"|"inactive">("active");
 
+
+
   const {
     mutateAsync: submitAdminRequest,
       isPending: isSubmittingAdminRequest,
@@ -131,9 +164,24 @@ export default function AMSLayout({
     data: userList,
   } = useMasterlistUsers({
     page,
-    search,
+    search: userSearch,
     status: userTab,
   });
+
+  const {
+    data: branchList,
+  } = useBranchesSetting({
+    page,
+    search: branchSearch,
+  });
+
+  const {
+    data: companyList,
+  } = useCompanySetting({
+    page,
+    search: companySearch,
+  });
+
 
   const {
       data: agents = [],
@@ -196,8 +244,10 @@ export default function AMSLayout({
     
 
   useEffect(() => {
-
-    if (debouncedSearch === search) {
+    if (
+      debouncedUserSearch ===
+      userSearch
+    ) {
       return;
     }
 
@@ -206,10 +256,18 @@ export default function AMSLayout({
         searchParams.toString()
       );
 
-    params.set(
-      "search",
-      debouncedSearch
-    );
+    if (
+      debouncedUserSearch.trim()
+    ) {
+      params.set(
+        "userSearch",
+        debouncedUserSearch.trim()
+      );
+    } else {
+      params.delete(
+        "userSearch"
+      );
+    }
 
     params.set(
       "page",
@@ -217,12 +275,103 @@ export default function AMSLayout({
     );
 
     router.replace(
-      `?${params.toString()}`
+      `?${params.toString()}`,
+      {
+        scroll: false,
+      }
+    );
+  }, [
+    debouncedUserSearch,
+    userSearch,
+    router,
+    searchParams,
+  ]);
+
+
+  useEffect(() => {
+    if (
+      debouncedBranchSearch ===
+      branchSearch
+    ) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        searchParams.toString()
+      );
+
+    if (
+      debouncedBranchSearch.trim()
+    ) {
+      params.set(
+        "branchSearch",
+        debouncedBranchSearch.trim()
+      );
+    } else {
+      params.delete(
+        "branchSearch"
+      );
+    }
+
+    params.set(
+      "page",
+      "1"
     );
 
+    router.replace(
+      `?${params.toString()}`,
+      {
+        scroll: false,
+      }
+    );
   }, [
-    debouncedSearch,
-    search,
+    debouncedBranchSearch,
+    branchSearch,
+    router,
+    searchParams,
+  ]);
+
+  useEffect(() => {
+    if (
+      debouncedCompanySearch ===
+      companySearch
+    ) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        searchParams.toString()
+      );
+
+    if (
+      debouncedCompanySearch.trim()
+    ) {
+      params.set(
+        "companySearch",
+        debouncedCompanySearch.trim()
+      );
+    } else {
+      params.delete(
+        "companySearch"
+      );
+    }
+
+    params.set(
+      "page",
+      "1"
+    );
+
+    router.replace(
+      `?${params.toString()}`,
+      {
+        scroll: false,
+      }
+    );
+  }, [
+    debouncedCompanySearch,
+    companySearch,
     router,
     searchParams,
   ]);
@@ -308,6 +457,21 @@ export default function AMSLayout({
     });
     
 
+  
+  const handleUserTabChange = (
+    tab: "active" | "inactive"
+  ) => {
+    setUserTab(tab);
+
+    const params = new URLSearchParams(
+      searchParams.toString()
+    );
+
+    // Reset pagination
+    params.set("page", "1");
+
+    router.replace(`?${params.toString()}`);
+  };
 
   const handleCloseAdminReactivation = async () => {
       setFormalRequestFile(null);
@@ -618,7 +782,7 @@ export default function AMSLayout({
                               font-bold
                             "
                   >
-                    Admin Profile
+                    {user.roles}
                   </h1>
                   <button
                     onClick={() =>
@@ -986,6 +1150,47 @@ export default function AMSLayout({
                     <User2Icon size={18} />
                     <span>Users</span>
                   </li>
+
+                   <li
+                    onClick={() => setActiveTab(SettingsTab.BRANCH_SETTINGS)}
+                    className={`
+                        flex
+                        gap-custom-16
+                        items-center
+                        rounded-lg
+                        px-custom-16
+                        py-custom-8
+                        cursor-pointer
+                        ${activeTab === SettingsTab.BRANCH_SETTINGS
+                        ? "bg-mainPrimary text-white"
+                        : "text-neutralPrimary hover:bg-neutralLight"
+                      }
+                      `}
+                  >
+                    <Building2 size={18} />
+                    <span>Branches</span>
+                  </li>
+
+                  <li
+                    onClick={() => setActiveTab(SettingsTab.COMPANY)}
+                    className={`
+                        flex
+                        gap-custom-16
+                        items-center
+                        rounded-lg
+                        px-custom-16
+                        py-custom-8
+                        cursor-pointer
+                        ${activeTab === SettingsTab.COMPANY
+                        ? "bg-mainPrimary text-white"
+                        : "text-neutralPrimary hover:bg-neutralLight"
+                      }
+                      `}
+                  > 
+                    <Factory size={18} />
+                    <span>Companies</span>
+                  </li>
+
                   <li
                     onClick={() => setActiveTab(SettingsTab.COMMISSION)}
                     className={`
@@ -1005,6 +1210,8 @@ export default function AMSLayout({
                     <Coins size={18} />
                     <span>Commission Rules</span>
                   </li>
+
+                 
              
                 </ul>
                 {/* CONTENT */}
@@ -1013,7 +1220,7 @@ export default function AMSLayout({
                     <div className="flex flex-col gap-y-custom-24">
                       <div className="text-xs grid grid-cols-3 gap-custom-16 border-b border-neutralMed pb-custom-8 ">
                         <button
-                          onClick={() => setUserTab("active")}
+                          onClick={() => handleUserTabChange("active")}
                           className={`
                             px-custom-16
                             py-custom-8
@@ -1031,7 +1238,7 @@ export default function AMSLayout({
                           Active Users
                         </button>
                         <button
-                          onClick={() => setUserTab("inactive")}
+                          onClick={() => handleUserTabChange("inactive")}
                           className={`
                             px-custom-16
                             py-custom-8
@@ -1140,6 +1347,241 @@ export default function AMSLayout({
                         </div>
                     </div>
                   )}
+                  {activeTab === SettingsTab.BRANCH_SETTINGS &&(
+                    <div className="flex flex-col gap-custom-24">
+                       <div className="flex items-center justify-between gap-x-custom-16">
+                         <input
+                            type="text"
+                            value={branchText}
+                            placeholder="Search branches..."
+                            onChange={(e) =>
+                              setBranchText(
+                                e.target.value
+                              )
+                            }
+                            className="
+                              w-full
+                              px-custom-16
+                              py-custom-8
+                              border
+                              border-neutralMed
+                              rounded-lg
+                              bg-white
+                            "
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setIsAddBranchOpen(true)
+                            }
+                            className="
+                              rounded-lg
+                              bg-positive
+                              px-custom-16
+                              py-custom-8
+                              text-white
+                              cursor-pointer
+                              transition
+                              duration-150
+                              ease-in-out
+                              w-full
+                              hover:scale-105
+                            "
+                          >
+                            Create New Branch
+                          </button>
+                       </div>
+
+                        <BranchSettings
+                          Branches={
+                            branchList?.data ?? []
+                          }
+                          isAddBranchOpen={
+                            isAddBranchOpen
+                          }
+                          setIsAddBranchOpen={
+                            setIsAddBranchOpen
+                          }
+                        />
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm text-neutralPrimary">
+                            Page {branchList?.page ?? 1} of {branchList?.totalPages ?? 1}
+                          </p>
+                          <div className="flex gap-custom-8">
+                            <button
+                              disabled={(branchList?.page ?? 1) <= 1}
+                              onClick={() => {
+                                const params = new URLSearchParams(
+                                  searchParams.toString()
+                                );
+                                params.set(
+                                  "page",
+                                  String((branchList?.page ?? 1) - 1)
+                                );
+                                router.replace(
+                                  `?${params.toString()}`
+                                );
+                              }}
+                              className="
+                                px-custom-16
+                                py-custom-8
+                                rounded-lg
+                                bg-neutralLight
+                                disabled:opacity-50
+                              "
+                            >
+                              Previous
+                            </button>
+                            <button
+                              disabled={
+                                (branchList?.page ?? 1) >=
+                                (branchList?.totalPages ?? 1)
+                              }
+                              onClick={() => {
+                                const params = new URLSearchParams(
+                                  searchParams.toString()
+                                );
+                                params.set(
+                                  "page",
+                                  String((branchList?.page ?? 1) + 1)
+                                );
+                                router.replace(
+                                  `?${params.toString()}`
+                                );
+                              }}
+                              className="
+                                px-custom-16
+                                py-custom-8
+                                rounded-lg
+                                bg-mainPrimary
+                                text-white
+                                disabled:opacity-50
+                              "
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                    </div>
+                  )}  
+                  {activeTab === SettingsTab.COMPANY &&(
+                    <div className="flex flex-col gap-custom-24">
+                       <div className="flex items-center justify-between gap-x-custom-16">
+                         <input
+                            type="text"
+                            value={companyText}
+                            placeholder="Search company..."
+                            onChange={(e) =>
+                              setCompanyText(
+                                e.target.value
+                              )
+                            }
+                            className="
+                              w-full
+                              px-custom-16
+                              py-custom-8
+                              border
+                              border-neutralMed
+                              rounded-lg
+                              bg-white
+                            "
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setIsAddCompanyOpen(true)
+                            }
+                            className="
+                              rounded-lg
+                              bg-positive
+                              px-custom-16
+                              py-custom-8
+                              text-white
+                              cursor-pointer
+                              transition
+                              duration-150
+                              ease-in-out
+                              w-full
+                              hover:scale-105
+                            "
+                          >
+                            Create New Company
+                          </button>
+                       </div>
+
+                        <CompanySettings
+                          Companies={
+                            companyList?.data ?? []
+                          }
+                          isAddCompanyOpen={
+                            isAddCompanyOpen
+                          }
+                          setIsAddCompanyOpen={
+                            setIsAddCompanyOpen
+                          }
+                        />
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm text-neutralPrimary">
+                            Page {companyList?.page ?? 1} of {companyList?.totalPages ?? 1}
+                          </p>
+                          <div className="flex gap-custom-8">
+                            <button
+                              disabled={(companyList?.page ?? 1) <= 1}
+                              onClick={() => {
+                                const params = new URLSearchParams(
+                                  searchParams.toString()
+                                );
+                                params.set(
+                                  "page",
+                                  String((companyList?.page ?? 1) - 1)
+                                );
+                                router.replace(
+                                  `?${params.toString()}`
+                                );
+                              }}
+                              className="
+                                px-custom-16
+                                py-custom-8
+                                rounded-lg
+                                bg-neutralLight
+                                disabled:opacity-50
+                              "
+                            >
+                              Previous
+                            </button>
+                            <button
+                              disabled={
+                                (companyList?.page ?? 1) >=
+                                (companyList?.totalPages ?? 1)
+                              }
+                              onClick={() => {
+                                const params = new URLSearchParams(
+                                  searchParams.toString()
+                                );
+                                params.set(
+                                  "page",
+                                  String((companyList?.page ?? 1) + 1)
+                                );
+                                router.replace(
+                                  `?${params.toString()}`
+                                );
+                              }}
+                              className="
+                                px-custom-16
+                                py-custom-8
+                                rounded-lg
+                                bg-mainPrimary
+                                text-white
+                                disabled:opacity-50
+                              "
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                    </div>
+                  )}  
+
                   {activeTab === SettingsTab.COMMISSION && (
                     <div className="flex flex-col gap-custom-24">
       

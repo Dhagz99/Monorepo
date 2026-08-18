@@ -244,11 +244,7 @@ enum PayoutChannel {
 model Company {
   companyCode    String    @id @db.VarChar(20)
 
-  companyCycle   String?   @db.VarChar(50)
-
   companyName    String?   @db.VarChar(100)
-
-  isDisburse     Boolean   @default(false)
 
   branches       Branch[]
 
@@ -280,7 +276,7 @@ model Branch {
 
   company         Company? @relation(fields: [companyId],references: [companyCode])
 
-  // agents         AgentBranch[]
+  agents         AgentBranch[]
 
   users User[]
 
@@ -302,6 +298,8 @@ model Branch {
 model Agent {
 
   id                 String   @id @default(uuid())
+
+  profilePicture     String?
 
   agentCode          String   @unique @db.VarChar(100)
 
@@ -339,7 +337,7 @@ model Agent {
 
   downlines          Agent[]@relation("AgentHierarchy")
 
-  // branches           AgentBranch[]
+  branches           AgentBranch[]
 
   user User?
 
@@ -719,37 +717,37 @@ model AgentNotification {
 }
 
 
-// model AgentBranch {
-//   id            String    @id @default(uuid())
+model AgentBranch {
+  id            String    @id @default(uuid())
 
-//   agentId       String
+  agentId       String
 
-//   branchId      String
-
-
-//   agent         Agent @relation(fields: [agentId],references: [id],   onDelete: Cascade)
-
-//   branch        Branch @relation(fields: [branchId],references: [branchCode])
+  branchId      String
 
 
-//   isActive      Boolean  @default(true)
+  agent         Agent @relation(fields: [agentId],references: [id],   onDelete: Cascade)
 
-//   assignedAt    DateTime @default(now())
-
-
-//   createdAt     DateTime @default(now())
-
-//   updatedAt     DateTime @updatedAt
+  branch        Branch @relation(fields: [branchId],references: [branchCode])
 
 
-//   @@unique([agentId, branchId])
+  isActive      Boolean  @default(true)
 
-//   @@index([agentId])
+  assignedAt    DateTime @default(now())
 
-//   @@index([branchId])
 
-//   @@map("agent_branches")
-// }
+  createdAt     DateTime @default(now())
+
+  updatedAt     DateTime @updatedAt
+
+
+  @@unique([agentId, branchId])
+
+  @@index([agentId])
+
+  @@index([branchId])
+
+  @@map("agent_branches")
+}
 
 enum FormulaType {
   FORMULA2

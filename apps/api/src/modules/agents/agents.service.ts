@@ -13,6 +13,7 @@ import {
   UpdateAdminAccSchema,
   AgentEditDetails,
   UpdateAgentDetailsPayload,
+  RegisterAgentApiPayload,
 } from "@repo/shared";
 
 import {
@@ -27,7 +28,9 @@ import {
   emitAdminReactivationApproval,
   emitUplineReactivationApproval,
 } from "../../socket/socketEmitter";
-import { formatDateForResponse, normalizeNullableString, parseAgentGender, parseNullableDate } from "./helper/agent.helper";
+import { formatDateForResponse, normalizeNullableString, parseAgentGender, parseNullableDate, validateAgentLevelChange } from "./helper/agent.helper";
+import { sendSmsToGateway } from "../../services/sms/sms.services";
+import { AppError } from "../../middleware/appError.middleware";
 
 
 
@@ -214,56 +217,130 @@ export const searchBranchs = async (
 
 
 
+
+
 export const registerAgent = async (
-  payload: RegisterAgentSchema
+  payload: RegisterAgentApiPayload,
+    profilePhotoPath: string
 ) => {
+  const agentCode =
+    payload.agentQrCode?.trim();
 
-  const existingUsername =
-    await prisma.agent.findUnique({
-      where: {
-        username: payload.username,
-      },
-    });
-
-  if (existingUsername) {
+  if (!agentCode) {
     throw new Error(
-      "Username already exists"
+      "Agent QR code is required."
     );
   }
 
-  const existingQR =
-    await prisma.agent.findUnique({
-      where: {
-        agentCode:
-          payload.agentQrCode,
-      },
-    });
+  const username =
+    payload.username.trim();
 
-  if (existingQR) {
+  if (!username) {
     throw new Error(
-      "QR Code already exists. Please generate again."
+      "Username is required."
     );
   }
 
   const now = new Date();
 
-  const currentDay =
-    now.getDate();
-
   const isGracePeriod =
-    currentDay > 12;
+    now.getDate() > 12;
 
   return prisma.$transaction(
     async (tx) => {
+      const branch =
+        await tx.branch.findUnique({
+          where: {
+            branchCode:
+              payload.branchCode,
+          },
+          select: {
+            branchCode: true,
+          },
+        });
+
+      if (!branch) {
+        throw new Error(
+          "Selected branch does not exist."
+        );
+      }
+
+
+      const [
+        existingUsername,
+        existingQR,
+      ] = await Promise.all([
+        tx.agent.findUnique({
+          where: {
+            username,
+          },
+          select: {
+            id: true,
+          },
+        }),
+
+        tx.agent.findUnique({
+          where: {
+            agentCode,
+          },
+          select: {
+            id: true,
+          },
+        }),
+      ]);
+
+      if (existingUsername) {
+        throw new Error(
+          "Username already exists."
+        );
+      }
+
+      if (existingQR) {
+        throw new Error(
+          "QR Code already exists. Please generate again."
+        );
+      }
+
+      if (
+        payload.selectedAgentLevel ===
+        AgentLevel.L1
+      ) {
+        const l1AgentCount =
+          await tx.agentBranch.count({
+            where: {
+              branchId: branch.branchCode,
+
+              agent: {
+                level:
+                  AgentLevel.L1,
+
+                status: {
+                  in: [
+                    AgentStatus.PENDING,
+                    AgentStatus.ACTIVE,
+                  ],
+                },
+              },
+            },
+          });
+
+        if (l1AgentCount >= 10) {
+            throw new AppError(
+              "This branch has already reached the maximum limit of 10 L1 agents.",
+              409
+            );
+        }
+      }
 
       const agent =
         await tx.agent.create({
           data: {
-            agentCode:
-              payload.agentQrCode || "",
+            agentCode,
 
-            username:
-              payload.username,
+            profilePicture:
+              profilePhotoPath,
+
+            username,
 
             fullName:
               payload.agentName
@@ -271,8 +348,8 @@ export const registerAgent = async (
                 .toLowerCase()
                 .replace(
                   /\b\w/g,
-                  (char) =>
-                    char.toUpperCase()
+                  (character) =>
+                    character.toUpperCase()
                 ),
 
             gender:
@@ -291,7 +368,7 @@ export const registerAgent = async (
               payload.agentTel,
 
             SecondaryTel:
-                payload.agentSecTel,
+              payload.agentSecTel,
 
             status:
               AgentStatus.PENDING,
@@ -300,37 +377,51 @@ export const registerAgent = async (
               payload.selectedAgentLevel as AgentLevel,
 
             parentAgentId:
-              payload.parentAgentId || null,
-
+              payload.parentAgentId ||
+              null,
           },
-
         });
 
+      await Promise.all([
+        tx.agentBranch.create({
+          data: {
+            agentId: agent.id,
+            branchId: branch.branchCode,
+          },
+        }),
 
-      await tx.agentNotification.create({
-        data: {
-          agentId:
-            agent.id,
+        tx.agentNotification.create({
+          data: {
+            agentId: agent.id,
 
-          type:
-            NotificationType.AGENT_REGISTRATION,
+            type:
+              NotificationType.AGENT_REGISTRATION,
 
-          title:
-            "NEW AGENT",
+            title:
+              "NEW AGENT",
 
-          message:
-            isGracePeriod
-              ? "You're now registered as an agent. Your account is currently under grace period. Your first active maintenance cycle will start next month."
-              : "You're now registered as an agent. Your maintenance cycle is now active for this month.",
-        },
-      });
+            message:
+              isGracePeriod
+                ? "You're now registered as an agent. Your account is currently under grace period. Your first active maintenance cycle will start next month."
+                : "You're now registered as an agent. Your maintenance cycle is now active for this month.",
+          },
+        }),
+      ]);
 
       return {
         agent,
+        branch: {
+          id: branch.branchCode,
+          branchCode:
+            branch.branchCode,
+        },
       };
     }
   );
 };
+
+
+
 
 export const agentTransactions = async ({
   agentId,
@@ -643,58 +734,59 @@ export const updateAgentRegistration = async (
   agentId: string,
   status: "ACTIVE" | "REJECTED"
 ) => {
-
-
-  
   const now = new Date();
 
-  const currentMonth =
-    now.getMonth() + 1;
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const currentDay = now.getDate();
 
-  const currentYear =
-    now.getFullYear();
+  const isGracePeriod = currentDay > 12;
 
-  const currentDay =
-    now.getDate();
+  const cycleStartDate = new Date(
+    currentYear,
+    currentMonth - 1,
+    1
+  );
 
-  const isGracePeriod =
-    currentDay > 12;
+  const cycleEndDate = new Date(
+    currentYear,
+    currentMonth,
+    0,
+    23,
+    59,
+    59
+  );
 
-  const cycleStartDate =
-    new Date(
-      currentYear,
-      currentMonth - 1,
-      1
-    );
+  const temporaryPassword =
+    generateTemporaryPassword(8);
 
-  const cycleEndDate =
-    new Date(
-      currentYear,
-      currentMonth,
-      0,
-      23,
-      59,
-      59
-    );
-  return prisma.$transaction(
+  /*
+   * Generate the hash before opening the transaction.
+   * This avoids keeping the database transaction open
+   * while bcrypt performs CPU-intensive work.
+   */
+  const hashedPassword = await bcrypt.hash(
+    temporaryPassword,
+    10
+  );
+
+  const result = await prisma.$transaction(
     async (tx) => {
+      const agent = await tx.agent.update({
+        where: {
+          id: agentId,
+        },
+        data: {
+          status,
+        },
+      });
 
-      const agent =
-        await tx.agent.update({
-          where: {
-            id: agentId,
-          },
-          data: {
-            status,
-          },
-        });
-
+      let shouldSendApprovalEmail = false;
 
       if (
         status === "ACTIVE" &&
         ["L1", "L2"].includes(agent.level)
       ) {
-
         const existingUser =
           await tx.user.findUnique({
             where: {
@@ -702,33 +794,36 @@ export const updateAgentRegistration = async (
             },
           });
 
-     
         if (existingUser) {
+          /*
+           * These operations do not depend on each
+           * other's results, so they can run together.
+           */
+          await Promise.all([
+            tx.user.update({
+              where: {
+                agentId: agent.id,
+              },
+              data: {
+                isActive: true,
+              },
+            }),
 
-          await tx.user.update({
-            where: {
-              agentId: agent.id,
-            },
-            data: {
-              isActive: true,
-            },
-          });
+            tx.agentNotification.create({
+              data: {
+                agentId: agent.id,
 
-          await tx.agentNotification.create({
-            data: {
-              agentId: agent.id,
-              type: existingUser
-                    ? NotificationType.REACTIVATION_REQUEST
-                    : NotificationType.AGENT_REGISTRATION,
-              title: "ACCOUNT APPROVED",
-              message: existingUser
-                ? "Your account has been reactivated."
-                : `Your account has been approved. Username: ${agent.username}`,
-            },
-          });
+                type:
+                  NotificationType.REACTIVATION_REQUEST,
 
+                title: "ACCOUNT APPROVED",
+
+                message:
+                  "Your account has been reactivated.",
+              },
+            }),
+          ]);
         } else {
-
           const agentRole =
             await tx.role.findUnique({
               where: {
@@ -742,116 +837,96 @@ export const updateAgentRegistration = async (
             );
           }
 
-          const temporaryPassword =
-              generateTemporaryPassword(8);
+          /*
+           * User creation and notification creation
+           * are independent after the role is found.
+           */
+          await Promise.all([
+            tx.user.create({
+              data: {
+                email: agent.email,
 
-          const hashedPassword =
-            await bcrypt.hash(
-              temporaryPassword,
-              10
-            );
+                name: agent.fullName,
 
-          await tx.user.create({
-            data: {
-              email: agent.email,
+                username: agent.username,
 
-              name: agent.fullName,
+                password: hashedPassword,
 
-              username:
-                agent.username,
+                isActive: true,
 
-              password:
-                hashedPassword,
+                agentId: agent.id,
 
-              isActive: true,
-
-              agentId: agent.id,
-
-              roles: {
-                create: [
-                  {
-                    roleId:
-                      agentRole.id,
-                  },
-                ],
+                roles: {
+                  create: [
+                    {
+                      roleId: agentRole.id,
+                    },
+                  ],
+                },
               },
-            },
-          });
+            }),
 
-          if (agent.email) {
-            await sendAgentApprovalEmail(
-              agent.email,
-              agent.fullName,
-              agent.username,
-              temporaryPassword
-            );
-          }
+            tx.agentNotification.create({
+              data: {
+                agentId: agent.id,
 
-          await tx.agentNotification.create({
-            data: {
-              agentId: agent.id,
+                type:
+                  NotificationType.AGENT_REGISTRATION,
 
-              type:
-                NotificationType.AGENT_REGISTRATION,
+                title: "ACCOUNT APPROVED",
 
-              title:
-                "ACCOUNT APPROVED",
+                message:
+                  `Your account has been approved. Username: ${agent.username}`,
+              },
+            }),
+          ]);
 
-              message:
-                `Your account has been approved. Username: ${agent.username}`,
-            },
-          });
-          
+          shouldSendApprovalEmail =
+            Boolean(agent.email);
         }
-      }else{
-         await tx.agentNotification.create({
-            data: {
-              agentId: agent.id,
+      } else {
+        await tx.agentNotification.create({
+          data: {
+            agentId: agent.id,
 
-              type:
-                NotificationType.AGENT_REGISTRATION,
+            type:
+              NotificationType.AGENT_REGISTRATION,
 
-              title:
-                "AGENT REGISTERED",
+            title: "AGENT REGISTERED",
 
-              message:
-                `You're now registered as an Agent.`,
-            },
-          });
+            message:
+              "You're now registered as an Agent.",
+          },
+        });
       }
 
-    await tx.agentMaintenanceCycle.create({
+      /*
+       * This keeps your original maintenance-cycle logic:
+       * a cycle is created regardless of level/status.
+       */
+      await tx.agentMaintenanceCycle.create({
         data: {
-          agentId:
-            agent.id,
+          agentId: agent.id,
 
-          cycleMonth:
-            currentMonth,
+          cycleMonth: currentMonth,
 
-          cycleYear:
-            currentYear,
+          cycleYear: currentYear,
 
           cycleStartDate,
 
           cycleEndDate,
 
           requiredSales:
-            isGracePeriod
-              ? 0
-              : 1,
+            isGracePeriod ? 0 : 1,
 
           completedSales: 0,
 
           remainingSales:
-            isGracePeriod
-              ? 0
-              : 1,
+            isGracePeriod ? 0 : 1,
 
-          isCompleted:
-            isGracePeriod,
+          isCompleted: isGracePeriod,
 
-          isFirstCycle:
-            true,
+          isFirstCycle: true,
 
           status:
             isGracePeriod
@@ -860,11 +935,74 @@ export const updateAgentRegistration = async (
         },
       });
 
+      const phone =
+        agent.telephone ||
+        agent.SecondaryTel ||
+        null;
 
-      return agent;
+      return {
+        agent,
+        phone,
+        shouldSendApprovalEmail,
+      };
     }
   );
+
+  /*
+   * Email and SMS are external network operations.
+   * Run them after the database transaction commits.
+   */
+  const externalTasks: Promise<unknown>[] = [];
+
+  if (
+    result.shouldSendApprovalEmail &&
+    result.agent.email
+  ) {
+    externalTasks.push(
+      sendAgentApprovalEmail(
+        result.agent.email,
+        result.agent.fullName,
+        result.agent.username,
+        temporaryPassword
+      )
+    );
+  }
+
+  if (result.phone) {
+    const smsMessage = `You're now registered as an agent. Your account ${
+      isGracePeriod
+        ? "is currently under grace period. Your first active maintenance cycle will start next month."
+        : "is now active and ready to begin processing sales."
+    }
+
+    Please access our website to view your credit points and account details.
+
+    https://jamerogroupofcompanies.site/
+
+    Username: ${result.agent.username}
+    Temporary Password: ${temporaryPassword}
+
+    Please log in and change your password after your first login.`;
+
+        externalTasks.push(
+          sendSmsToGateway(
+            result.phone,
+            smsMessage
+          )
+        );
+  }
+
+  /*
+   * Email and SMS run simultaneously instead of
+   * waiting for one before starting the other.
+   */
+  if (externalTasks.length > 0) {
+    await Promise.all(externalTasks);
+  }
+
+  return result.agent;
 };
+
 
 export const droppedOrSuspendedAgentService = async (
   agentId: string,
@@ -1460,6 +1598,280 @@ export async function getAgentEditDetailsService(
   };
 }
 
+
+// export async function updateAgentDetailsService(
+//   agentId: string,
+//   payload: UpdateAgentDetailsPayload
+// ): Promise<AgentEditDetails> {
+//   const fullName =
+//     payload.fullName.trim();
+
+//   const username =
+//     normalizeNullableString(
+//       payload.username
+//     );
+
+//   const email =
+//     normalizeNullableString(
+//       payload.email
+//     );
+
+//   const telephone =
+//     normalizeNullableString(
+//       payload.telephone
+//     );
+
+//   const secondaryTel =
+//     normalizeNullableString(
+//       payload.secondaryTel
+//     );
+
+//   const address =
+//     normalizeNullableString(
+//       payload.address
+//     );
+
+//   if (!fullName) {
+//     throw new Error(
+//       "Agent full name is required."
+//     );
+//   }
+
+//   if (
+//     !Object.values(
+//       AgentLevel
+//     ).includes(
+//       payload.level as AgentLevel
+//     )
+//   ) {
+//     throw new Error(
+//       "Invalid agent level."
+//     );
+//   }
+
+//   if (
+//     !Object.values(
+//       AgentStatus
+//     ).includes(
+//       payload.status as AgentStatus
+//     )
+//   ) {
+//     throw new Error(
+//       "Invalid agent status."
+//     );
+//   }
+
+//   const requestedLevel =
+//     payload.level as AgentLevel;
+
+//   const gender =
+//     parseAgentGender(
+//       payload.gender
+//     );
+
+//   const existingAgent =
+//     await prisma.agent.findUnique({
+//       where: {
+//         id: agentId,
+//       },
+
+//       select: {
+//         id: true,
+//         level: true,
+//         parentAgentId: true,
+//       },
+//     });
+
+//   if (!existingAgent) {
+//     throw new Error(
+//       "Agent not found."
+//     );
+//   }
+
+//   /*
+//    * Enforce:
+//    *
+//    * L1 -> L1 only
+//    * L2 -> L2 or L1
+//    * L3 -> L3 or L2
+//    */
+//   validateAgentLevelChange(
+//     existingAgent.level,
+//     requestedLevel
+//   );
+
+//   if (username) {
+//     const existingUsername =
+//       await prisma.user.findFirst({
+//         where: {
+//           username,
+
+//           NOT: {
+//             agentId:
+//               existingAgent.id,
+//           },
+//         },
+
+//         select: {
+//           id: true,
+//         },
+//       });
+
+//     if (existingUsername) {
+//       throw new Error(
+//         "Username is already in use."
+//       );
+//     }
+//   }
+
+//   if (email) {
+//     const existingEmail =
+//       await prisma.agent.findFirst({
+//         where: {
+//           email,
+
+//           NOT: {
+//             id: agentId,
+//           },
+//         },
+
+//         select: {
+//           id: true,
+//         },
+//       });
+
+//     if (existingEmail) {
+//       throw new Error(
+//         "Email is already assigned to another agent."
+//       );
+//     }
+//   }
+
+//   const isLevelChanged =
+//     existingAgent.level !==
+//     requestedLevel;
+
+//   const isPromotedToL1 =
+//     existingAgent.level ===
+//       AgentLevel.L2 &&
+//     requestedLevel ===
+//       AgentLevel.L1;
+
+//   const isPromotedToL2 =
+//     existingAgent.level ===
+//       AgentLevel.L3 &&
+//     requestedLevel ===
+//       AgentLevel.L2;
+
+//   await prisma.$transaction(
+//     async (tx) => {
+//       /*
+//        * Promoted L1 and L2 agents must no longer
+//        * have their previous parent/upline.
+//        */
+//       const newParentAgentId =
+//         isPromotedToL1 ||
+//         isPromotedToL2
+//           ? null
+//           : existingAgent.parentAgentId;
+
+//       await tx.agent.update({
+//         where: {
+//           id: agentId,
+//         },
+
+//         data: {
+//           fullName,
+
+//           level:
+//             requestedLevel,
+
+//           status:
+//             payload.status as AgentStatus,
+
+//           gender,
+
+//           birthDate:
+//             parseNullableDate(
+//               payload.birthDate
+//             ),
+
+//           address,
+//           email,
+//           telephone,
+
+//           SecondaryTel:
+//             secondaryTel,
+
+//           parentAgentId:
+//             newParentAgentId,
+//         },
+//       });
+
+//       /*
+//        * When an L2 becomes L1, its direct L3
+//        * downlines become L2.
+//        *
+//        * They remain assigned to the newly
+//        * promoted L1 agent.
+//        */
+//       if (isPromotedToL1) {
+//         await tx.agent.updateMany({
+//           where: {
+//             parentAgentId:
+//               agentId,
+
+//             level:
+//               AgentLevel.L3,
+//           },
+
+//           data: {
+//             level:
+//               AgentLevel.L2,
+//           },
+//         });
+//       }
+
+//       /*
+//        * Keep the linked user account username
+//        * synchronized when a user account exists.
+//        */
+//       if (username) {
+//         const linkedUser =
+//           await tx.user.findUnique({
+//             where: {
+//               agentId:
+//                 existingAgent.id,
+//             },
+
+//             select: {
+//               id: true,
+//             },
+//           });
+
+//         if (linkedUser) {
+//           await tx.user.update({
+//             where: {
+//               agentId:
+//                 existingAgent.id,
+//             },
+
+//             data: {
+//               username,
+//             },
+//           });
+//         }
+//       }
+//     }
+//   );
+
+//   return getAgentEditDetailsService(
+//     agentId
+//   );
+// }
+
+
+
 export async function updateAgentDetailsService(
   agentId: string,
   payload: UpdateAgentDetailsPayload
@@ -1510,33 +1922,27 @@ export async function updateAgentDetailsService(
     );
   }
 
-  if (
-    !Object.values(
-      AgentStatus
-    ).includes(
-      payload.status as AgentStatus
-    )
-  ) {
-    throw new Error(
-      "Invalid agent status."
-    );
-  }
+ 
+
+  const requestedLevel =
+    payload.level as AgentLevel;
+
 
   const gender =
-  parseAgentGender(
-    payload.gender
-  );
+    parseAgentGender(
+      payload.gender
+    );
 
   const existingAgent =
     await prisma.agent.findUnique({
       where: {
-        id:
-          agentId,
+        id: agentId,
       },
 
       select: {
-        id:
-          true,
+        id: true,
+        level: true,
+        parentAgentId: true,
       },
     });
 
@@ -1546,75 +1952,175 @@ export async function updateAgentDetailsService(
     );
   }
 
-  if (
-    username &&
-    existingAgent.id
-  ) {
-    const existingUsername =
-      await prisma.user.findFirst({
-        where: {
-          username,
+  validateAgentLevelChange(
+    existingAgent.level,
+    requestedLevel
+  );
 
-          NOT: {
-            agentId:
-              existingAgent.id,
-          },
+  const isPromotedToL1 =
+    existingAgent.level ===
+      AgentLevel.L2 &&
+    requestedLevel ===
+      AgentLevel.L1;
+
+  const isPromotedToL2 =
+    existingAgent.level ===
+      AgentLevel.L3 &&
+    requestedLevel ===
+      AgentLevel.L2;
+
+  /*
+   * Validate the selected new upline when an
+   * L3 agent is promoted to L2.
+   */
+  let validatedNewUplineId:
+    string | null =
+      existingAgent.parentAgentId;
+
+  if (isPromotedToL2) {
+    if (!payload.newUplineId) {
+      throw new Error(
+        "A new L1 upline is required when promoting an L3 agent to L2."
+      );
+    }
+
+    if (
+      payload.newUplineId ===
+      agentId
+    ) {
+      throw new Error(
+        "An agent cannot be assigned as their own upline."
+      );
+    }
+
+    const newUpline =
+      await prisma.agent.findUnique({
+        where: {
+          id:
+            payload.newUplineId,
         },
 
         select: {
-          id:
-            true,
+          id: true,
+          level: true,
+          status: true,
         },
       });
 
-    if (existingUsername) {
+    if (!newUpline) {
       throw new Error(
-        "Username is already in use."
+        "Selected upline was not found."
       );
     }
+
+    if (
+      newUpline.level !==
+      AgentLevel.L1
+    ) {
+      throw new Error(
+        "The selected upline must be an L1 agent."
+      );
+    }
+
+    if (
+      newUpline.status !==
+      AgentStatus.ACTIVE
+    ) {
+      throw new Error(
+        "The selected upline must be active."
+      );
+    }
+
+    validatedNewUplineId =
+      newUpline.id;
   }
 
-  if (email) {
-    const existingEmail =
-      await prisma.agent.findFirst({
-        where: {
-          email,
+  const [
+    existingUsername,
+    existingEmail,
+  ] = await Promise.all([
+    username
+      ? prisma.user.findFirst({
+          where: {
+            username,
 
-          NOT: {
-            id:
-              agentId,
+            NOT: {
+              agentId:
+                existingAgent.id,
+            },
           },
-        },
 
-        select: {
-          id:
-            true,
-        },
-      });
+          select: {
+            id: true,
+          },
+        })
+      : Promise.resolve(null),
 
-    if (existingEmail) {
-      throw new Error(
-        "Email is already assigned to another agent."
-      );
-    }
+    email
+      ? prisma.agent.findFirst({
+          where: {
+            email,
+
+            NOT: {
+              id: agentId,
+            },
+          },
+
+          select: {
+            id: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (existingUsername) {
+    throw new Error(
+      "Username is already in use."
+    );
+  }
+
+  if (existingEmail) {
+    throw new Error(
+      "Email is already assigned to another agent."
+    );
   }
 
   await prisma.$transaction(
     async (tx) => {
+      /*
+       * L2 -> L1:
+       * Remove the promoted agent's current upline.
+       *
+       * L3 -> L2:
+       * Assign the selected active L1 as the new upline.
+       *
+       * No level change:
+       * Preserve the current parent.
+       */
+      const nextParentAgentId =
+        isPromotedToL1
+          ? null
+          : isPromotedToL2
+            ? validatedNewUplineId
+            : existingAgent.parentAgentId;
+
       await tx.agent.update({
         where: {
-          id:
-            agentId,
+          id: agentId,
         },
 
         data: {
           fullName,
 
-          level:
-            payload.level as AgentLevel,
+          ...(username
+            ? {
+                username,
+              }
+            : {}),
 
-          status:
-            payload.status as AgentStatus,
+          level:
+            requestedLevel,
+
 
           gender,
 
@@ -1629,23 +2135,64 @@ export async function updateAgentDetailsService(
 
           SecondaryTel:
             secondaryTel,
+
+          parentAgentId:
+            nextParentAgentId,
         },
       });
 
-      if (
-        existingAgent.id &&
-        username
-      ) {
-        await tx.user.update({
+      /*
+       * When an L2 becomes L1, promote its direct
+       * L3 downlines to L2.
+       *
+       * They remain under this newly promoted L1.
+       */
+      if (isPromotedToL1) {
+        await tx.agent.updateMany({
           where: {
-            agentId:
-              existingAgent.id,
+            parentAgentId:
+              agentId,
+
+            level:
+              AgentLevel.L3,
           },
 
           data: {
-            username,
+            level:
+              AgentLevel.L2,
           },
         });
+      }
+
+      /*
+       * Synchronize the username of the linked
+       * user account when one exists.
+       */
+      if (username) {
+        const linkedUser =
+          await tx.user.findUnique({
+            where: {
+              agentId:
+                existingAgent.id,
+            },
+
+            select: {
+              id: true,
+            },
+          });
+
+        if (linkedUser) {
+          await tx.user.update({
+            where: {
+              agentId:
+                existingAgent.id,
+            },
+
+            data: {
+              username,
+            },
+          });
+        }
       }
     }
   );

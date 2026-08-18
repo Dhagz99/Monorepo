@@ -455,6 +455,8 @@ export interface GetAgentDetailsResponse {
 
   agentCode: string;
 
+  profilePicture: string;
+
   username: string;
 
   fullName: string;
@@ -679,13 +681,14 @@ export type UpdateAgentDetailsPayload = {
   fullName: string;
   username: string | null;
   level: AgentLevel;
-  status: AgentStatus;
   gender: AgentGender | null;
   birthDate: string | null;
   address: string | null;
   email: string | null;
   telephone: string | null;
   secondaryTel: string | null;
+
+  newUplineId?: string | null;
 };
 
 export type UpdateAgentResponse = {
@@ -698,7 +701,6 @@ export type AgentFormState = {
   fullName: string;
   username: string;
   level: string;
-  status: string;
   gender: string;
   birthDate: string;
   address: string;
@@ -711,7 +713,6 @@ export const emptyAgentForm: AgentFormState = {
   fullName: "",
   username: "",
   level: "L1",
-  status: "ACTIVE",
   gender: "",
   birthDate: "",
   address: "",

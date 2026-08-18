@@ -1,4 +1,6 @@
+
 import { UserSetting } from "@repo/shared";
+
 
 interface Props {
   Users: UserSetting[];
@@ -7,6 +9,8 @@ interface Props {
 export default function InactiveUsers({
   Users,
 }: Props) {
+  
+
   return (
     <div
       className="
@@ -38,7 +42,7 @@ export default function InactiveUsers({
             </th>
 
             <th className="text-left px-custom-24 py-custom-16 font-semibold">
-              Action
+              Username
             </th>
         
           </tr>
@@ -79,23 +83,7 @@ export default function InactiveUsers({
                 </td>
 
                 <td className="px-custom-24 py-custom-16">
-                                
-                    <button
-                        className="
-                            bg-positive
-                            cursor-pointer
-                            hover:scale-105
-                            ease-in-out
-                            duration-150
-                            text-white
-                            px-custom-8
-                            py-custom-8
-                            text-xs
-                            rounded-lg
-                        "
-                        >
-                    Reactivate User
-                    </button>
+                  {user.username ?? "-"}
                 </td>
 
                 

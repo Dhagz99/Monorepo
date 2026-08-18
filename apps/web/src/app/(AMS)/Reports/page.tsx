@@ -17,6 +17,10 @@ import TopEarningAgentsTable from "./components/topAgent";
 import { CardSim, Coins, CreditCard, PiggyBank, Wallet } from "lucide-react";
 import MaintenanceNearExpiryTable from "./components/expireryAgent";
 import { useState } from "react";
+import AgentCommissionReport from "./components/AgentCommissionReport";
+import { ReportType } from "@repo/shared";
+import { defaultEndPeriod, defaultStartPeriod } from "./helper/dateFormat.helper";
+import BranchCommissionReport from "./components/BranchCommissionReport";
 
 const formatMoney = (value?: number | string | null) => {
   return `₱${Number(value ?? 0).toLocaleString()}`;
@@ -30,17 +34,30 @@ export default function ReportsAnalytics() {
   const page = Number(searchParams.get("page") ?? 1);
   const expiryPage = Number(searchParams.get("expiryPage") ?? 1);
 
-
-  const limit = 5;
-
   const now = new Date();
 
   const defaultMonth = `${now.getFullYear()}-${String(
     now.getMonth() + 1
   ).padStart(2, "0")}`;
+  
+
+  const [startPeriod, setStartPeriod] = useState<string>(defaultStartPeriod);
+
+  const [endPeriod, setEndPeriod]= useState<string>(defaultEndPeriod);
+
+  const [reportType, setReportType] = useState<ReportType>("AGENT");
+
+  const [searchName, setSearchName] = useState("");
+
+
+  const limit = 5;
+
+
 
   const selectedMonth =
     searchParams.get("month") ?? defaultMonth;
+
+
   const {
     data,
     isLoading: isReportsLoading,
@@ -82,8 +99,57 @@ export default function ReportsAnalytics() {
     return <div>Loading reports...</div>;
   }
 
+  const handleGenerateReport = () => {
+    if (!startPeriod || !endPeriod) {
+      return;
+    }
+
+    if (startPeriod > endPeriod) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      reportType,
+      startPeriod,
+      endPeriod,
+    });
+
+    if (searchName.trim()) {
+      params.set(
+        "searchName",
+        searchName.trim()
+      );
+    }
+
+    const width = 1200;
+    const height = 800;
+
+    const left =
+      window.screenX +
+      (window.outerWidth - width) / 2;
+
+    const top =
+      window.screenY +
+      (window.outerHeight - height) / 2;
+
+    window.open(
+      `/print/commission-report?${params.toString()}`,
+      "CommissionReport",
+      `
+        width=${width},
+        height=${height},
+        left=${left},
+        top=${top},
+        resizable=yes,
+        scrollbars=yes
+      `
+    );
+  };
+
   return (
     <div className="w-full flex flex-col gap-y-custom-24 px-custom-32 py-custom-48">
+
+      
       <div className="flex justify-between items-center">
         <ModuleHeader
           title="Reports &"
@@ -116,6 +182,7 @@ export default function ReportsAnalytics() {
           "
         />
       </div>
+      
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-custom-16">
         <SummaryCard
@@ -148,6 +215,10 @@ export default function ReportsAnalytics() {
         </div>
 
       </div>
+
+
+
+
 
       <div className="flex flex-col gap-custom-24">
         <div
@@ -349,6 +420,178 @@ export default function ReportsAnalytics() {
           </div>
         </div>
       </div>
+
+
+      <div className="border border-neutralMed rounded-xl shadow-sm">
+          <div className="p-custom-16 border-b border-neutralMed">
+            <h3 className="font-semibold text-mainPrimary">
+              Agent Commission Report
+            </h3>
+          </div>
+          
+          <div className="flex justify-start items-end pt-custom-16 px-custom-16 gap-x-custom-16">
+
+            
+              <div className="flex flex-col gap-1 items-start">
+                    <label htmlFor="startPeriod" className="text-sm px-custom-8 text-neutralPrimary">
+                      Report Type
+                    </label>
+
+                    <select
+                      id="reportType"
+                      value={
+                        reportType
+                      }
+                      onChange={
+                        (event)=>
+                          setReportType(event.target.value as ReportType)
+                      }
+                      className="
+                        border
+                      border-neutralMed
+                        rounded-xl
+                        px-custom-16
+                        py-custom-8
+                        text-sm
+                        text-mainPrimary
+                        bg-white
+                      "
+                    >
+      
+                      <option value="AGENT">
+                        Agent Performance
+                      </option>
+
+                      <option value="BRANCH">
+                        Branch Summary
+                      </option>
+
+                    
+                    </select>
+            </div>
+
+
+              <div className="flex flex-col gap-1 items-start">
+                <label
+                    htmlFor="reportSearch"
+                    className="text-sm px-custom-8 text-neutralPrimary"
+                  >
+                    {reportType === "AGENT"
+                      ? "Agent Name"
+                      : "Branch"}
+                </label>
+
+                <input
+                    id="reportSearch"
+                    type="search"
+                    value={searchName}
+                    onChange={(event) =>
+                      setSearchName(event.target.value)
+                    }
+                    autoComplete="off"
+                    className="
+                      min-w-60
+                      border
+                      border-neutralMed
+                      rounded-xl
+                      px-custom-16
+                      py-custom-8
+                      text-sm
+                      text-mainPrimary
+                      bg-white
+                      placeholder:text-neutralPrimary
+                    "
+                    placeholder={
+                      reportType === "AGENT"
+                        ? "Search agent name..."
+                        : "Search branch..."
+                    }
+                  />
+              </div>
+            <div className="flex flex-col gap-1 items-start">
+              <label htmlFor="startPeriod" className="text-sm px-custom-8 text-neutralPrimary">Start Period</label>
+                <input
+                  id="startPeriod"
+                  type="date"
+                  value={startPeriod}
+                  onChange={(event) => {
+                    setStartPeriod(event.target.value)
+                  }}
+                  className="
+                    border
+                    border-neutralMed
+                    rounded-xl
+                    px-custom-16
+                    py-custom-8
+                    text-sm
+                    text-mainPrimary
+                    bg-white
+                  "
+                />
+            </div>
+
+             <div className="flex flex-col gap-1 items-start">
+              <label htmlFor="endPeriod" className="text-sm px-custom-8 text-neutralPrimary">End Period</label>
+                <input
+                  id="endPeriod"
+                  type="date"
+                  value={endPeriod}
+                  onChange={(event) => {
+                    setEndPeriod(event.target.value)
+                  }}
+                  className="
+                    border
+                    border-neutralMed
+                    rounded-xl
+                    px-custom-16
+                    py-custom-8
+                    text-sm
+                    text-mainPrimary
+                    bg-white
+                  "
+                />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGenerateReport}
+              disabled={
+                !startPeriod ||
+                !endPeriod ||
+                startPeriod > endPeriod
+              }
+              className="
+                bg-mainPrimary
+                text-white
+                px-custom-24
+                py-custom-8
+                rounded-lg
+                font-normal
+                cursor-pointer
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+              "
+            >
+              Generate Report
+            </button>
+          </div>
+
+          {reportType === "AGENT" ? (
+            <AgentCommissionReport
+              reportType={reportType}
+              startPeriod={startPeriod}
+              endPeriod={endPeriod}
+              searchName={searchName}
+            />
+          ) : (
+            <BranchCommissionReport
+              reportType={reportType}
+              startPeriod={startPeriod}
+              endPeriod={endPeriod}
+              searchName={searchName}
+            />
+          )}
+      </div>           
     </div>
   );
 }

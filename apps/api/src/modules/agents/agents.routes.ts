@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticateToken } from "../auth/auth.middleware";
 import { searchAgentsController, getMasterlistController, searchBranchController,searchAgentsReactivateController, registerAgentController,getAllPendingAgentController, updateAgentRegistrationController, getAgentDetailsController, getAgentTransactionsController, checkUniqueInfoController,getAgentTransactionsHistController, readAllNotifController, droppedOrSuspendedAgentController, updateAgentAccountController, getRemainingSalesController, updateAdminAccountController, getAgentEditDetailsController, updateAgentDetailsController} from "./agents.controller";
+import { uploadAgentProfile } from "../../middleware/uploadProfile.middleware";
 
 
 
@@ -15,7 +16,9 @@ router.get("/transactions/:agentId/history", getAgentTransactionsHistController)
 router.get("/remaining-sales/:agentId",getRemainingSalesController);
 router.get("/:agentId/edit-details",authenticateToken,getAgentEditDetailsController);
 
-router.post("/registerAgent", registerAgentController);
+router.post("/registerAgent",uploadAgentProfile.single(
+    "profilePhoto"
+  ), registerAgentController);
 router.post("/getPendingAgent", getAllPendingAgentController);
 router.post("/getMasterlist",authenticateToken, getMasterlistController);
 router.post("/checkUniqueInfo",checkUniqueInfoController);

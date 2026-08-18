@@ -135,6 +135,8 @@ export default function AgentDetailsPage() {
 
   const {data: agent, isLoading, error } = useAgentDetails({agentId:params.id as string});
 
+  
+
   const [downlineTab, setDownlineTab] =
   useState<"L2" | "L3">("L2");
 
@@ -218,6 +220,15 @@ export default function AgentDetailsPage() {
       };
 
     }, []);
+
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:5000";
+
+  const profilePictureUrl =
+    agent?.profilePicture
+      ? `${API_BASE_URL}${agent.profilePicture.trim()}`
+      : null;
 
   const {
       data: transactionData,
@@ -444,13 +455,37 @@ export default function AgentDetailsPage() {
                               gap-y-custom-32
               ">
                 <div className="bg-neutralLight shadow-md flex justify-center items-center p-custom-8 rounded-lg w-fit">
-          
-                      <QRCode
-                        value={agent?.agentCode || ""}
-                        size={140}
-                      />
-          
-          
+                  {profilePictureUrl ? (
+                    <img
+                      src={profilePictureUrl}
+                      alt={`${agent.fullName ?? "Agent"} profile`}
+                      className="
+                        w-32
+                        h-32
+                        rounded-md
+                        object-cover
+                        border
+                        border-neutralMed
+                      "
+                    />
+                  ) : (
+                    <div
+                      className="
+                        w-28
+                        h-28
+                        rounded-full
+                        bg-neutralMed
+                        flex
+                        items-center
+                        justify-center
+                        text-sm
+                        text-neutralPrimary
+                        text-center
+                      "
+                    >
+                      No profile <br></br> picture
+                    </div>
+                  )}
                 </div>
                 <div className="w-full flex flex-col gap-y-custom-24">
                     <div className="w-full flex justify-between items-center flex-wrap gap-custom-16">

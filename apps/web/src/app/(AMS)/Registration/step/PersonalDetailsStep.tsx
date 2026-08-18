@@ -217,69 +217,151 @@ export default function PersonalDetailsStep({
                       )}
                     </div>
 
-                                          {/* CONTACT */}
-                      <div className="relative flex flex-col gap-2 w-full
+                    {/* PRIMARY CONTACT */}
+                    <div
+                      className="
+                        relative
+                        flex
+                        flex-col
+                        gap-2
+                        w-full
                         md:col-span-2
-                        lg:col-span-1">
-                        <h6 className="text-neutralPrimary text-body">Primary Contact Number</h6>
-                        <input
-                          {...register(
-                            "agentTel"
-                          )}
-                  
+                        lg:col-span-1
+                      "
+                    >
+                      <h6 className="text-neutralPrimary text-body">
+                        Primary Contact Number
+                      </h6>
+
+                      <div
+                        className="
+                          flex
+                          items-center
+                          border
+                          border-neutralPrimary
+                          rounded-lg
+                          overflow-hidden
+                          focus-within:border-mainPrimary
+                        "
+                      >
+                        {/* FIXED PREFIX */}
+                        <span
                           className="
-                            border
+                            px-4
+                            py-3
+                            bg-neutralLight
+                            border-r
                             border-neutralPrimary
-                            rounded-lg
-                            px-4 py-3
+                            font-semibold
+                            text-neutralPrimary
+                            select-none
+                          "
+                        >
+                          +63
+                        </span>
+
+                        <input
+                          {...register("agentTel")}
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="9123456789"
+                          maxLength={10}
+                          className="
+                            flex-1
+                            px-4
+                            py-3
+                            outline-none
                           "
                         />
-                        {errors.agentTel && (
-                          <p className=" absolute
-                              -bottom-6
-                              left-0
-                              text-negative
-                              text-sm">
-                            {
-                              errors
-                                .agentTel
-                                .message
-                            }
-                          </p>
-                        )}
                       </div>
 
-
-                      <div className="relative flex flex-col gap-2 w-full
-                        md:col-span-2
-                        lg:col-span-1">
-                        <h6 className="text-neutralPrimary text-body">Secondary Contact Number</h6>
-                        <input
-                          {...register(
-                            "agentSecTel"
-                          )}
-                  
+                      {errors.agentTel && (
+                        <p
                           className="
-                            border
+                            absolute
+                            -bottom-6
+                            left-0
+                            text-negative
+                            text-sm
+                          "
+                        >
+                          {errors.agentTel.message}
+                        </p>
+                      )}
+                    </div>
+
+
+                    {/* SECONDARY CONTACT */}
+                    <div
+                      className="
+                        relative
+                        flex
+                        flex-col
+                        gap-2
+                        w-full
+                        md:col-span-2
+                        lg:col-span-1
+                      "
+                    >
+                      <h6 className="text-neutralPrimary text-body">
+                        Secondary Contact Number
+                      </h6>
+
+                      <div
+                        className="
+                          flex
+                          items-center
+                          border
+                          border-neutralPrimary
+                          rounded-lg
+                          overflow-hidden
+                          focus-within:border-mainPrimary
+                        "
+                      >
+                        <span
+                          className="
+                            px-4
+                            py-3
+                            bg-neutralLight
+                            border-r
                             border-neutralPrimary
-                            rounded-lg
-                            px-4 py-3
+                            font-semibold
+                            text-neutralPrimary
+                            select-none
+                          "
+                        >
+                          +63
+                        </span>
+
+                        <input
+                          {...register("agentSecTel")}
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="9123456789"
+                          maxLength={10}
+                          className="
+                            flex-1
+                            px-4
+                            py-3
+                            outline-none
                           "
                         />
-                        {errors.agentSecTel && (
-                          <p className=" absolute
-                              -bottom-6
-                              left-0
-                              text-negative
-                              text-sm">
-                            {
-                              errors
-                                .agentSecTel
-                                .message
-                            }
-                          </p>
-                        )}
                       </div>
+
+                      {errors.agentSecTel && (
+                        <p
+                          className="
+                            absolute
+                            -bottom-6
+                            left-0
+                            text-negative
+                            text-sm
+                          "
+                        >
+                          {errors.agentSecTel.message}
+                        </p>
+                      )}
+                    </div>
 
                    
             </div>

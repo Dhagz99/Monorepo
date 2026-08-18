@@ -1,4 +1,7 @@
+import SweetAlert from "@/components/modal/Swal";
+import { useDeleteUser } from "@/hooks/general/useGeneral";
 import { UserSetting } from "@repo/shared";
+import axios from "axios";
 
 interface Props {
   Users: UserSetting[];
@@ -7,6 +10,57 @@ interface Props {
 export default function ActiveUsers({
   Users,
 }: Props) {
+  const deleteUserMutation =
+      useDeleteUser();
+  
+  const handleDelete = (
+    user: UserSetting
+  ) => {
+    SweetAlert.confirmationAlert(
+      "Delete User",
+      `Are you sure you want to delete ${user.username}?`,
+      async () => {
+        try {
+          await deleteUserMutation.mutateAsync({
+            userId:
+              user.id,
+          });
+
+          await SweetAlert.successAlert(
+            "Deleted",
+            "User Permanently deleted successfully."
+          );
+
+        } catch (
+          error: unknown
+        ) {
+          let message =
+            "Unable to delete user.";
+
+          if (
+            axios.isAxiosError<{
+              message?: string;
+            }>(error)
+          ) {
+            message =
+              error.response?.data
+                ?.message ??
+              message;
+          } else if (
+            error instanceof Error
+          ) {
+            message =
+              error.message;
+          }
+
+          SweetAlert.errorAlert(
+            "Delete Failed",
+            message
+          );
+        }
+      }
+    );
+  };
   return (
     <div
       className="
@@ -38,7 +92,7 @@ export default function ActiveUsers({
             </th>
 
             <th className="text-left px-custom-24 py-custom-16 font-semibold">
-              Username
+              Action
             </th>
 
           </tr>
@@ -79,7 +133,31 @@ export default function ActiveUsers({
                 </td>
 
                 <td className="px-custom-24 py-custom-16">
-                  {user.username ?? "-"}
+                    <button
+                        type="button"
+                        disabled={
+                            deleteUserMutation.isPending
+                          }
+                          onClick={() =>
+                            handleDelete(
+                              user
+                            )
+                          }
+                        className="
+                            bg-neutralPrimary
+                            cursor-pointer
+                            hover:scale-105
+                            ease-in-out
+                            duration-150
+                            text-white
+                            px-custom-24
+                            py-custom-8
+                            text-xs
+                            rounded-lg
+                        "
+                        >
+                        Deactivate User
+                    </button>
                 </td>
 
                 

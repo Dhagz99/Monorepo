@@ -108,19 +108,30 @@ export const useSearchBranches = (
     });
 };
 
-export const useRegisterAgent =
-  () => {
+// export const useRegisterAgent =
+//   () => {
 
-    return useMutation({
-      mutationFn:
-        (
-          payload: RegisterAgentSchema
-        ) =>
-          registerAgentService(
-            payload
-          ),
-    });
-  };
+//     return useMutation({
+//       mutationFn:
+//         (
+//           payload: RegisterAgentSchema
+//         ) =>
+//           registerAgentService(
+//             payload
+//           ),
+//     });
+//   };
+
+export const useRegisterAgent = () => {
+  return useMutation({
+    mutationFn: (
+      payload: FormData
+    ) =>
+      registerAgentService(
+        payload
+      ),
+  });
+};
 
 export const useGetPendingAgents = (
   params: GetPendingAgentParams

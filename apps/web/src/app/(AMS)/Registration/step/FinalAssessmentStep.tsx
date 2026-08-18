@@ -3,6 +3,8 @@
 import {
   RegisterAgentSchema,
 } from "@repo/shared";
+import axios from "axios";
+
 
 import QRCode from "react-qr-code";
 
@@ -15,6 +17,8 @@ import {
 
 import { useRegisterAgent } from "@/hooks/agents/useAgent";
 import { getErrorMessage } from "@/components/helper/errorHelper";
+import { useAuth } from "@/components/context/UserContext";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   watchedValues:
@@ -22,55 +26,455 @@ type Props = {
 
   handleSubmit:
     UseFormHandleSubmit<RegisterAgentSchema>;
+  
+  onRegistrationSuccess:
+    () => void;
 };
 
 export default function FinalAssessmentStep({
   watchedValues,
   handleSubmit,
+  onRegistrationSuccess,
 }: Props) {
+
+
+  const { user } = useAuth();
+
+
+
+
+
+
+  const videoRef =
+    useRef<HTMLVideoElement | null>(null);
+
+  const canvasRef =
+    useRef<HTMLCanvasElement | null>(null);
+
+  const streamRef =
+    useRef<MediaStream | null>(null);
+
+  const [
+    profilePhoto,
+    setProfilePhoto,
+  ] = useState<File | null>(null);
+
+  const [
+    profilePreview,
+    setProfilePreview,
+  ] = useState<string | null>(null);
+
+  const [
+    cameraActive,
+    setCameraActive,
+  ] = useState(false);
+
+
+
+  const startCamera = async () => {
+    try {
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        throw new Error(
+          "Camera access is not supported by this browser."
+        );
+      }
+
+      // Stop any old stream before opening a new one.
+      streamRef.current
+        ?.getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: {
+              ideal: 720,
+            },
+            height: {
+              ideal: 720,
+            },
+          },
+          audio: false,
+        });
+
+      streamRef.current = stream;
+
+      setCameraActive(true);
+    } catch (error) {
+      console.error(
+        "CAMERA ERROR:",
+        error
+      );
+
+      SweetAlert.errorAlert(
+        "Camera Error",
+        error instanceof Error
+          ? error.message
+          : "Unable to access the camera. Please allow camera permission."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !cameraActive ||
+      !videoRef.current ||
+      !streamRef.current
+    ) {
+      return;
+    }
+
+    const video =
+      videoRef.current;
+
+    video.srcObject =
+      streamRef.current;
+
+    const playVideo = async () => {
+      try {
+        await video.play();
+      } catch (error) {
+        console.error(
+          "VIDEO PLAY ERROR:",
+          error
+        );
+      }
+    };
+
+    void playVideo();
+  }, [cameraActive]);
+
+  const stopCamera = () => {
+    streamRef.current
+      ?.getTracks()
+      .forEach((track) => {
+        track.stop();
+      });
+
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject =
+        null;
+    }
+
+    setCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    const video =
+      videoRef.current;
+
+    const canvas =
+      canvasRef.current;
+
+    if (
+      !video ||
+      !canvas ||
+      video.videoWidth === 0 ||
+      video.videoHeight === 0
+    ) {
+      SweetAlert.errorAlert(
+        "Camera Not Ready",
+        "Please wait for the camera preview before capturing."
+      );
+
+      return;
+    }
+
+    const size = Math.min(
+      video.videoWidth,
+      video.videoHeight
+    );
+
+    const sourceX =
+      (video.videoWidth - size) / 2;
+
+    const sourceY =
+      (video.videoHeight - size) / 2;
+
+    canvas.width = 600;
+    canvas.height = 600;
+
+    const context =
+      canvas.getContext("2d");
+
+    if (!context) {
+      return;
+    }
+
+    context.save();
+
+    context.translate(
+      canvas.width,
+      0
+    );
+
+    context.scale(-1, 1);
+
+    context.drawImage(
+      video,
+      sourceX,
+      sourceY,
+      size,
+      size,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    context.restore();
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          SweetAlert.errorAlert(
+            "Capture Failed",
+            "Unable to create the profile photo."
+          );
+
+          return;
+        }
+
+        const file = new File(
+          [blob],
+          `agent-profile-${Date.now()}-${watchedValues.agentQrCode}.jpg`,
+          {
+            type: "image/jpeg",
+          }
+        );
+
+        if (profilePreview) {
+          URL.revokeObjectURL(
+            profilePreview
+          );
+        }
+
+        const previewUrl =
+          URL.createObjectURL(file);
+
+        setProfilePhoto(file);
+        setProfilePreview(previewUrl);
+
+        stopCamera();
+      },
+      "image/jpeg",
+      0.85
+    );
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
+  const branchCode =
+    user?.branch?.branchCode ??
+    null;
+  
 
   const registerMutation =
     useRegisterAgent();
 
 
   const onSubmit = async (
-    data: RegisterAgentSchema
-  ) => {
-
-    try {
-
-      SweetAlert.loadingAlert(
-        "Registering Agent",
-        "Please wait..."
-      );
-
-      const result =
-        await registerMutation.mutateAsync(
-          data
+      data: RegisterAgentSchema
+    ) => {
+      if (!branchCode) {
+        SweetAlert.errorAlert(
+          "Branch Required",
+          "Your account does not have an assigned branch."
         );
 
-      console.log(result);
+        return;
+      }
 
-      Swal.close();
+      if (!profilePhoto) {
+        SweetAlert.errorAlert(
+          "Profile Picture Required",
+          "Please capture the agent profile picture."
+        );
 
-      await SweetAlert.successAlert(
-        "Success",
-        "Agent registered successfully"
-      );
+        return;
+      }
 
-    } catch (error: unknown) {
+      try {
+        SweetAlert.loadingAlert(
+          "Registering Agent",
+          "Please wait..."
+        );
 
-      console.log(error);
+        const formData = new FormData();
 
-      Swal.close();
+        formData.append(
+          "agentQrCode",
+          data.agentQrCode ?? ""
+        );
 
-      SweetAlert.errorAlert(
-        "Registration Failed",
-        getErrorMessage(error)
-      );
-    }
-  };
+        formData.append(
+          "email",
+          data.email ?? ""
+        );
 
+        formData.append(
+          "agentName",
+          data.agentName
+        );
+
+        formData.append(
+          "agentGender",
+          data.agentGender
+        );
+
+        formData.append(
+          "dateBirth",
+          data.dateBirth.toISOString()
+        );
+
+        formData.append(
+          "agentTel",
+          `+63${data.agentTel.trim()}`
+        );
+
+        formData.append(
+          "agentSecTel",
+          data.agentSecTel?.trim()
+            ? `+63${data.agentSecTel.trim()}`
+            : ""
+        );
+
+        formData.append(
+          "agentAdd",
+          data.agentAdd
+        );
+
+        formData.append(
+          "username",
+          data.username
+        );
+
+        formData.append(
+          "selectedAgentLevel",
+          data.selectedAgentLevel
+        );
+
+        formData.append(
+          "branchCode",
+          branchCode
+        );
+
+        formData.append(
+          "parentAgentId",
+          data.parentAgentId ?? ""
+        );
+
+        formData.append(
+          "parentAgentName",
+          data.parentAgentName ?? ""
+        );
+
+        formData.append(
+          "uplineLevel",
+          data.uplineLevel ?? ""
+        );
+
+        formData.append(
+          "profilePhoto",
+          profilePhoto
+        );
+
+        await registerMutation.mutateAsync(
+          formData
+        );
+
+        Swal.close();
+
+        await SweetAlert.successAlert(
+          "Success",
+          "Agent registered successfully."
+        );
+
+        /*
+        * Stop camera if somehow still active.
+        */
+        stopCamera();
+
+        /*
+        * Release the old preview URL before
+        * removing the profile picture.
+        */
+        if (profilePreview) {
+          URL.revokeObjectURL(
+            profilePreview
+          );
+        }
+
+        /*
+        * Clear FinalAssessmentStep's local
+        * state because RHF reset() cannot
+        * reset these values.
+        */
+        setProfilePhoto(null);
+        setProfilePreview(null);
+        setCameraActive(false);
+
+        /*
+        * Clear all form fields and return
+        * to Personal Details.
+        */
+        onRegistrationSuccess();
+
+      } catch (error: unknown) {
+        Swal.close();
+
+        const message =
+          axios.isAxiosError(error)
+            ? error.response?.data?.message ??
+              "Registration failed."
+            : error instanceof Error
+              ? error.message
+              : "Registration failed.";
+
+        SweetAlert.errorAlert(
+          "Registration Failed",
+          message
+        );
+      }
+    };
+
+
+  useEffect(() => {
+    return () => {
+      streamRef.current
+        ?.getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
+      if (profilePreview) {
+        URL.revokeObjectURL(
+          profilePreview
+        );
+      }
+    };
+  }, [profilePreview]);
 
   return (
     <form
@@ -107,7 +511,156 @@ export default function FinalAssessmentStep({
             gap-custom-32
             shadow-sm
           "
-        >
+        > 
+
+          <div
+              className="
+                bg-white
+                border
+                border-neutralMed
+                rounded-2xl
+                p-custom-24
+                flex
+                flex-col
+                items-center
+                gap-custom-16
+              "
+            >
+              <h2 className="text-secondaryHeader font-semibold text-mainPrimary">
+                Agent Profile Picture
+              </h2>
+
+              <div
+                className="
+                  w-56
+                  h-56
+                  rounded-full
+                  overflow-hidden
+                  border
+                  border-neutralMed
+                  bg-neutralLight
+                  flex
+                  items-center
+                  justify-center
+                "
+              >
+                {profilePreview ? (
+                  <img
+                    src={profilePreview}
+                    alt="Agent profile preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : cameraActive ? (
+                 <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    onLoadedMetadata={() => {
+                      void videoRef.current?.play();
+                    }}
+                    className="
+                      w-full
+                      h-full
+                      object-cover
+                      scale-x-[-1]
+                    "
+                  />
+                ) : (
+                  <span className="text-sm text-neutralPrimary">
+                    No photo captured
+                  </span>
+                )}
+              </div>
+
+              <canvas
+                ref={canvasRef}
+                className="hidden"
+              />
+
+              <div className="flex flex-wrap justify-center gap-custom-16">
+                {!cameraActive && (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="
+                      px-custom-24
+                      py-custom-16
+                      bg-mainPrimary
+                      text-white
+                      rounded-xl
+                      cursor-pointer
+                      hover:shadow-xl
+                    "
+                  >
+                    Open Camera
+                  </button>
+                )}
+
+                {cameraActive && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={capturePhoto}
+                      className="
+                        px-custom-24
+                        py-custom-16
+                        bg-mainPrimary
+                        text-white
+                        rounded-xl
+                        cursor-pointer
+                        hover:shadow-xl
+                      "
+                    >
+                      Capture Photo
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="
+                        px-custom-24
+                        py-custom-16
+                        border
+                        border-neutralMed
+                        rounded-xl
+                        cursor-pointer
+                        hover:shadow-xl
+                      "
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+
+                {profilePreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (profilePreview) {
+                        URL.revokeObjectURL(
+                          profilePreview
+                        );
+                      }
+
+                      setProfilePhoto(null);
+                      setProfilePreview(null);
+
+                      void startCamera();
+                    }}
+                    className="
+                      px-custom-24
+                      py-custom-12
+                      border
+                      border-neutralMed
+                      rounded-xl
+                    "
+                  >
+                    Retake Photo
+                  </button>
+                )}
+              </div>
+            </div>
 
           {/* TOP SECTION */}
           <div
@@ -117,7 +670,10 @@ export default function FinalAssessmentStep({
               xl:grid-cols-4
               gap-custom-24
             "
-          >
+          > 
+
+
+          
 
             {/* QR CARD */}
             <div
@@ -395,7 +951,10 @@ export default function FinalAssessmentStep({
                   mt-2
                 "
               >
-                {watchedValues.agentTel || "-"}
+                {watchedValues.agentTel
+                  ? `+63${watchedValues.agentTel}`
+                  : "-"
+                }
               </h2>
 
             </div>
@@ -424,7 +983,10 @@ export default function FinalAssessmentStep({
                   mt-2
                 "
               >
-                {watchedValues.agentSecTel || "-"}
+                {watchedValues.agentSecTel
+                  ? `+63${watchedValues.agentSecTel}`
+                  : "-"
+                }
               </h2>
 
             </div>
@@ -569,8 +1131,7 @@ export default function FinalAssessmentStep({
               </div>
 
             </div>
-          )}
-
+          )}  
 
         </div>
 
